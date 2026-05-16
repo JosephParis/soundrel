@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-blood: #b91c1c;
+  --color-parchment: #f5e6c8;
+  --color-dungeon: #0b0d12;
+  --color-stone: #1f2937;
+  --color-rune: #fbbf24;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  min-height: 100vh;
+  height: 100%;
+}
+
+body {
+  background: #0b0d12;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1e293b; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
