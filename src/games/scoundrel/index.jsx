@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   createRun,
   descend,
@@ -18,6 +18,7 @@ import {
   getBoon,
   getTheme,
   BOONS,
+  THEMES,
   SUIT_GLYPH,
   HEART, DIAMOND, CLUB, SPADE,
   isMonster, isWeapon, isPotion,
@@ -48,9 +49,19 @@ function Formula({ parts, className }) {
 
 export default function Scoundrel() {
   const [game, setGame] = useState(() => createRun())
+  const [rulesOpen, setRulesOpen] = useState(false)
+
+  useEffect(() => {
+    if (!rulesOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setRulesOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [rulesOpen])
 
   return (
     <div className="min-h-screen bg-dungeon text-parchment px-4 sm:px-8 pt-16 sm:pt-24 pb-16 flex items-start justify-center">
+      <RulesButton onClick={() => setRulesOpen(true)} />
+      <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <div className="w-full max-w-5xl">
         {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} />}
         {game.phase === 'descent' && <DescentView game={game} setGame={setGame} />}
@@ -84,6 +95,8 @@ function SanctuaryView({ game, setGame }) {
         </div>
         <SigilTracker count={game.sigilsEarned} target={game.sigilTarget} />
       </header>
+
+      {isOpeningVisit && <RulesInlinePanel />}
 
       {theme && <NextThemePanel theme={theme} />}
 
@@ -748,5 +761,330 @@ function LogPanel({ lines }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+// ============================================================
+// Rules — the comprehensive how-to-play, shown inline on the
+// opening visit and via a persistent "How to play" button
+// ============================================================
+
+function RulesContent() {
+  return (
+    <div className="space-y-5 text-slate-300 text-sm leading-relaxed">
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">Your goal</h3>
+        <p>
+          Earn <span className="text-rune font-semibold">7 sigils</span> — one per successful
+          descent — to unlock the high gate and escape the hold. Die in the dungeon and the
+          run ends; the next run starts you back at zero.
+        </p>
+      </section>
+
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">The descent</h3>
+        <p className="mb-2">
+          Each descent is a single pass through a 44-card deck. The dungeon deals you a{' '}
+          <span className="text-parchment font-semibold">room of 4 cards</span>. Click any
+          card to interact with it:
+        </p>
+        <ul className="space-y-1.5 pl-4 list-disc marker:text-stone-500">
+          <li>
+            <span className="text-blood font-semibold">♥ Heart</span> — a{' '}
+            <span className="text-parchment">potion</span>. Heals HP equal to its rank.{' '}
+            <span className="text-slate-400">Only the first potion per room heals; extras are wasted.</span>
+          </li>
+          <li>
+            <span className="text-blood font-semibold">♦ Diamond</span> — a{' '}
+            <span className="text-parchment">weapon</span>. Replaces your current weapon
+            (the old one is gone for good).
+          </li>
+          <li>
+            <span className="text-parchment font-semibold">♣ ♠ Club / Spade</span> — a{' '}
+            <span className="text-parchment">monster</span>. You fight it. Clicking the card
+            swings your weapon when it can; the{' '}
+            <span className="text-rune">"Bare hands"</span> button below the card forces a
+            bare-handed fight instead.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">Damage and the room</h3>
+        <ul className="space-y-1 pl-4 list-disc marker:text-stone-500">
+          <li>
+            <span className="text-parchment">With weapon</span> — you take{' '}
+            <span className="font-mono">max(0, monster rank − weapon rank)</span>.
+          </li>
+          <li>
+            <span className="text-parchment">Bare-handed</span> — you take the{' '}
+            full monster rank.
+          </li>
+          <li>
+            Clear the room to <span className="text-parchment">1 card</span> and it
+            refills from the deck.
+          </li>
+          <li>
+            <span className="text-rune">Flee the room</span> — the 4 cards return to the
+            bottom of the deck and a fresh room is dealt.{' '}
+            <span className="text-slate-400">You can't flee two rooms in a row.</span>
+          </li>
+          <li>
+            Empty the deck → descent complete →{' '}
+            <span className="text-rune font-semibold">+1 sigil</span>.
+          </li>
+          <li>HP reaches 0 → you die, the run ends.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">Weapon binding</h3>
+        <p>
+          A fresh weapon swings for any monster. After it kills something it{' '}
+          <span className="text-parchment font-semibold">binds</span> — afterwards, it will
+          only swing at monsters of <span className="text-parchment">equal or lower rank</span>.
+          Below the binding you can still fight bare-handed; sometimes that's the right call,
+          to keep the blade's edge for a worse foe you can see coming. Picking up a new
+          weapon resets the binding.
+        </p>
+      </section>
+
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">Between descents — the Sanctuary</h3>
+        <ul className="space-y-1 pl-4 list-disc marker:text-stone-500">
+          <li><span className="text-parchment">HP refills</span> to full.</li>
+          <li>
+            Pick <span className="text-rune font-semibold">one of three Boons</span> —
+            permanent for the rest of the run. Boons come in four flavors:{' '}
+            <span className="text-parchment">Combat</span>,{' '}
+            <span className="text-parchment">Survival</span>,{' '}
+            <span className="text-parchment">Economy</span>, and{' '}
+            <span className="text-parchment">Build-defining</span>.
+          </li>
+          <li>
+            The next descent's <span className="text-rune">Theme</span> is revealed.
+            Themes mutate the dungeon for that one descent only — deck bias, monster
+            strength, rule changes.
+          </li>
+          <li>
+            After sigils 2, 4, and 6, the <span className="text-rune">Forge</span> opens.
+            You may <span className="text-parchment">Strike</span> (remove a monster + a
+            same-rank weapon or potion from the deck) or{' '}
+            <span className="text-parchment">Transmute</span> (change a card's suit). Both
+            edits are permanent for the run.
+          </li>
+          <li>
+            Your <span className="text-parchment">weapon carries</span> between descents and
+            arrives rested — its binding is cleared every visit.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">Themes</h3>
+        <p>
+          The first descent is always <span className="text-parchment">The Quiet</span> —
+          a friendly warm-up (+10 max HP, no penalties). Later descents pull harsher
+          themes: extra face-card spades, all monsters at +1 rank, weapons that come in
+          dulled, etc. You see tonight's theme before you descend so you can spend your
+          Boon pick as counterplay.
+        </p>
+      </section>
+
+      <section>
+        <h3 className="text-rune font-semibold text-base mb-1">A few tips</h3>
+        <ul className="space-y-1 pl-4 list-disc marker:text-stone-500">
+          <li>Read the weapon's binding before swinging. A monster you can't beat with the blade still costs you full damage if you forget.</li>
+          <li>Flee <em>before</em> a brutal room mauls you. Once it's wounded you, the damage is already paid.</li>
+          <li>"Bare hands" exists so you can save the blade's edge for a fight only the weapon can win.</li>
+        </ul>
+      </section>
+    </div>
+  )
+}
+
+function RulesInlinePanel() {
+  return (
+    <section className="rounded-lg border border-amber-800/40 bg-stone-900/70 p-5 sm:p-6 shadow-md">
+      <div className="flex items-baseline justify-between mb-4 gap-4 flex-wrap">
+        <h2 className="text-2xl font-bold text-rune">How to play</h2>
+        <span className="text-xs text-slate-500">
+          The <span className="text-slate-300">How to play</span> button up top brings this back any time.
+        </span>
+      </div>
+      <RulesContent />
+    </section>
+  )
+}
+
+const RULES_TABS = [
+  { id: 'rules', label: 'How to play' },
+  { id: 'boons', label: 'Boons' },
+  { id: 'themes', label: 'Themes' },
+]
+
+function RulesTabBar({ tab, setTab }) {
+  return (
+    <div className="flex gap-1 mb-5 border-b border-stone-700 -mx-1 sm:mx-0 overflow-x-auto">
+      {RULES_TABS.map(t => {
+        const active = tab === t.id
+        return (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap transition ${
+              active
+                ? 'border-rune text-rune'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {t.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function RulesModal({ open, onClose }) {
+  const [tab, setTab] = useState('rules')
+  if (!open) return null
+  const title = RULES_TABS.find(t => t.id === tab)?.label || 'How to play'
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-stone-900 border border-stone-700 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close rules"
+        >
+          ×
+        </button>
+        <h2 className="text-2xl font-bold text-rune mb-1">{title}</h2>
+        <p className="text-sm text-slate-400 mb-4">
+          Scoundrel — the 44-card roguelike. Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+        </p>
+        <RulesTabBar tab={tab} setTab={setTab} />
+        {tab === 'rules' && <RulesContent />}
+        {tab === 'boons' && <BoonsGlossary />}
+        {tab === 'themes' && <ThemesGlossary />}
+      </div>
+    </div>
+  )
+}
+
+const BOON_TAG_META = {
+  combat: { label: 'Combat', blurb: 'Deal more, take less.' },
+  survival: { label: 'Survival', blurb: 'HP and safety nets.' },
+  economy: { label: 'Economy', blurb: 'Potions, fleeing, deck efficiency.' },
+  build: { label: 'Build-defining', blurb: 'Big rule-bending effects. Rarer, riskier.' },
+}
+const BOON_TAG_ORDER = ['combat', 'survival', 'economy', 'build']
+
+function BoonsGlossary() {
+  const byTag = {}
+  for (const id of Object.keys(BOONS)) {
+    const b = BOONS[id]
+    const tag = b.tag || 'misc'
+    if (!byTag[tag]) byTag[tag] = []
+    byTag[tag].push(b)
+  }
+  return (
+    <div className="space-y-5 text-sm">
+      <p className="text-slate-400 leading-relaxed">
+        After each successful descent you're offered <span className="text-parchment">three Boons</span> —
+        pick one. It's permanent for the rest of the run. The draw biases toward tags you've taken less,
+        so a run can't degenerate into six Combat Boons in a row.
+      </p>
+      {BOON_TAG_ORDER.map(tag => byTag[tag] && (
+        <section key={tag}>
+          <div className="flex items-baseline gap-3 mb-2 pb-1 border-b border-stone-800 flex-wrap">
+            <h3 className="text-rune font-semibold text-base">{BOON_TAG_META[tag].label}</h3>
+            <span className="text-[11px] text-slate-500">{BOON_TAG_META[tag].blurb}</span>
+          </div>
+          <ul className="space-y-2">
+            {byTag[tag].map(b => (
+              <li key={b.id} className="leading-snug">
+                <span className="text-rune font-semibold">{b.name}</span>
+                <span className="text-slate-300"> — {b.description}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+const TIER_META = {
+  opening: { label: 'Descent 1 — always', blurb: 'A friendly warm-up assigned to the first descent of every run.' },
+  1: { label: 'Tier 1 — Light', blurb: 'Single deck bias, no rule changes. Used to teach the system.' },
+  2: { label: 'Tier 2 — Heavy', blurb: 'Rule changes, harder bias.' },
+  3: { label: 'Tier 3 — Spire', blurb: 'Paired effects, weirder rules.' },
+}
+
+function ThemesGlossary() {
+  const all = Object.values(THEMES)
+  const opening = all.filter(t => !t.tier)
+  const tier1 = all.filter(t => t.tier === 1)
+  const tier2 = all.filter(t => t.tier === 2)
+  const tier3 = all.filter(t => t.tier === 3)
+  return (
+    <div className="space-y-5 text-sm">
+      <p className="text-slate-400 leading-relaxed">
+        Each descent runs under a <span className="text-parchment">Theme</span> — a deck and rule mutation
+        that lasts only for that descent. You see tonight's theme before you descend so you can spend
+        your Boon pick as counterplay.
+      </p>
+
+      <ThemeSection meta={TIER_META.opening} themes={opening} />
+      {tier1.length > 0 && <ThemeSection meta={TIER_META[1]} themes={tier1} />}
+      {tier2.length > 0 && <ThemeSection meta={TIER_META[2]} themes={tier2} />}
+      {tier3.length > 0 && <ThemeSection meta={TIER_META[3]} themes={tier3} />}
+
+      {tier2.length === 0 && tier3.length === 0 && (
+        <p className="text-[11px] text-slate-500 italic">
+          Heavier tiers (Heavy, Spire) will arrive as the dungeon deepens. For now, the dungeon rolls
+          only Tier 1 from descent 2 onward.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ThemeSection({ meta, themes }) {
+  if (!themes || themes.length === 0) return null
+  return (
+    <section>
+      <div className="flex items-baseline gap-3 mb-2 pb-1 border-b border-stone-800 flex-wrap">
+        <h3 className="text-rune font-semibold text-base">{meta.label}</h3>
+        <span className="text-[11px] text-slate-500">{meta.blurb}</span>
+      </div>
+      <ul className="space-y-2">
+        {themes.map(t => (
+          <li key={t.id} className="leading-snug">
+            <span className="text-rune font-semibold">{t.name}</span>
+            <span className="text-slate-300"> — {t.description}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function RulesButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="fixed top-3 right-3 z-40 px-4 py-2 rounded-lg bg-stone-800/90 hover:bg-stone-700 text-parchment text-sm font-semibold border border-stone-700 shadow-lg backdrop-blur-sm"
+    >
+      How to play
+    </button>
   )
 }
