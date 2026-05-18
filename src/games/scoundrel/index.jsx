@@ -10,8 +10,13 @@ import {
   closeForgeView,
   applyStrike,
   applyTransmute,
+  applyHeft,
   getStrikeOptions,
   getTransmuteOptions,
+  getHeftOptions,
+  HEFT_BONUS,
+  STRIKE_OFFERING_RANGE,
+  suitColor,
   previewMonsterDamage,
   describeMaxHp,
   describeWeaponStrength,
@@ -167,6 +172,7 @@ function SanctuaryView({ game, setGame }) {
         <ForgePromptPanel
           onStrike={() => setGame(g => openForgeAction(g, 'strike'))}
           onTransmute={() => setGame(g => openForgeAction(g, 'transmute'))}
+          onHeft={() => setGame(g => openForgeAction(g, 'heft'))}
         />
       )}
 
@@ -186,8 +192,16 @@ function SanctuaryView({ game, setGame }) {
         />
       )}
 
+      {game.forgeView === 'heft' && (
+        <HeftView
+          game={game}
+          onConfirm={(cid) => setGame(g => applyHeft(g, cid))}
+          onCancel={() => setGame(g => closeForgeView(g))}
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {theme && <NextThemePanel theme={theme} />}
+        {theme && <NextThemePanel theme={theme} childThemeIds={game.nextThemeChildren} />}
         <RunStatePanel game={game} />
       </div>
 
@@ -224,12 +238,23 @@ function SanctuaryHero({ isOpeningVisit }) {
   )
 }
 
-function NextThemePanel({ theme }) {
+function NextThemePanel({ theme, childThemeIds }) {
+  const childThemes = (childThemeIds || []).map(id => getTheme(id)).filter(Boolean)
   return (
     <div className="panel p-4">
       <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Tonight's air</div>
       <div className="font-display text-rune text-lg mb-1">{theme.name}</div>
       <div className="text-[13px] text-slate-300 leading-snug">{theme.description}</div>
+      {childThemes.length > 0 && (
+        <ul className="mt-2 pt-2 border-t border-stone-800 space-y-1">
+          {childThemes.map(c => (
+            <li key={c.id} className="text-[12px] leading-snug">
+              <span className="text-rune font-semibold">{c.name}</span>
+              <span className="text-slate-400"> — {c.description}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -286,14 +311,14 @@ function BoonCard({ boon, onPick }) {
   )
 }
 
-function ForgePromptPanel({ onStrike, onTransmute }) {
+function ForgePromptPanel({ onStrike, onTransmute, onHeft }) {
   return (
     <section className="panel panel-warm p-5">
       <div className="text-center mb-4">
         <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">The Forge is open</div>
         <h2 className="font-display text-rune text-lg mt-1">Carve once into the threshold</h2>
         <p className="text-[12px] text-slate-400 mt-1 max-w-md mx-auto">
-          You may strike a name from the rolls (with a matched offering) or transmute a card's suit.
+          Strike a name (with a matched offering), transmute a card's suit, or heft a weapon or potion to a heavier rank.
         </p>
       </div>
       <div className="flex gap-3 justify-center flex-wrap">
@@ -308,6 +333,12 @@ function ForgePromptPanel({ onStrike, onTransmute }) {
           className="px-5 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 text-parchment text-sm font-medium border border-stone-700 transition"
         >
           Transmute a card
+        </button>
+        <button
+          onClick={onHeft}
+          className="px-5 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 text-parchment text-sm font-medium border border-stone-700 transition"
+        >
+          Heft a card
         </button>
       </div>
     </section>
@@ -340,13 +371,18 @@ function ForgeViewShell({ kindLabel, title, blurb, children, onCancel, cancelLab
 function StrikeView({ game, onConfirm, onCancel }) {
   const { monsters, byRank } = useMemo(() => getStrikeOptions(game), [game])
   const [pickedMonster, setPickedMonster] = useState(null)
-  const offerings = pickedMonster ? (byRank[pickedMonster.rank] || []) : []
+  const offerings = pickedMonster
+    ? Array.from({ length: STRIKE_OFFERING_RANGE + 1 }, (_, i) => byRank[pickedMonster.rank - i] || [])
+        .flat()
+    : []
+
+  const lowest = pickedMonster ? Math.max(2, pickedMonster.rank - STRIKE_OFFERING_RANGE) : null
 
   return (
     <ForgeViewShell
       kindLabel="Strike"
       title="Carve a name from the rolls"
-      blurb="Pick a monster, then pick a weapon or potion of the same rank as a matched offering. Face-card dead (J/Q/K/A) are too weighty for the threshold."
+      blurb={`Pick a monster, then pick a weapon or potion at its rank or up to ${STRIKE_OFFERING_RANGE} below. The strongest dead (K, A) remain too weighty for any offering this hold can muster.`}
       onCancel={onCancel}
       cancelLabel="Step away from the threshold"
     >
@@ -358,14 +394,14 @@ function StrikeView({ game, onConfirm, onCancel }) {
           onPick={(c) => setPickedMonster(c)}
         />
         {monsters.length === 0 && (
-          <div className="text-[12px] text-slate-500 italic">No lesser dead remain to bind.</div>
+          <div className="text-[12px] text-slate-500 italic">No dead remain to bind.</div>
         )}
       </div>
 
       {pickedMonster && (
         <div>
           <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">
-            2. Matched offering · rank {rankLabel(pickedMonster.rank)}
+            2. Matched offering · rank {rankLabel(lowest)}–{rankLabel(pickedMonster.rank)}
           </div>
           {offerings.length > 0 ? (
             <CardPickerGrid
@@ -374,7 +410,7 @@ function StrikeView({ game, onConfirm, onCancel }) {
             />
           ) : (
             <div className="text-[12px] text-slate-500 italic">
-              No weapon or potion of rank {rankLabel(pickedMonster.rank)} remains. Pick another name.
+              No weapon or potion of rank {rankLabel(lowest)}–{rankLabel(pickedMonster.rank)} remains. Pick another name.
             </div>
           )}
         </div>
@@ -387,12 +423,15 @@ function TransmuteView({ game, onConfirm, onCancel }) {
   const cards = useMemo(() => getTransmuteOptions(game), [game])
   const [picked, setPicked] = useState(null)
   const suits = [HEART, DIAMOND, CLUB, SPADE]
+  const allowedSuits = picked
+    ? suits.filter(s => s !== picked.suit && suitColor(s) === suitColor(picked.suit))
+    : []
 
   return (
     <ForgeViewShell
       kindLabel="Transmute"
       title="Change a card's suit"
-      blurb="The rank stays the same. Useful for turning a heavy spade into a heart or a diamond."
+      blurb="The rank stays the same. Color is locked — hearts swap with diamonds, clubs swap with spades. A spade can become a club; a potion can become a weapon."
       onCancel={onCancel}
       cancelLabel="Step away"
     >
@@ -411,7 +450,7 @@ function TransmuteView({ game, onConfirm, onCancel }) {
             2. New suit for {rankLabel(picked.rank)}{SUIT_GLYPH[picked.suit]}
           </div>
           <div className="flex gap-2 flex-wrap justify-center">
-            {suits.filter(s => s !== picked.suit).map(s => (
+            {allowedSuits.map(s => (
               <button
                 key={s}
                 onClick={() => onConfirm(picked.id, s)}
@@ -423,6 +462,32 @@ function TransmuteView({ game, onConfirm, onCancel }) {
           </div>
         </div>
       )}
+    </ForgeViewShell>
+  )
+}
+
+function HeftView({ game, onConfirm, onCancel }) {
+  const cards = useMemo(() => getHeftOptions(game), [game])
+
+  return (
+    <ForgeViewShell
+      kindLabel="Heft"
+      title="Add weight to a weapon or potion"
+      blurb={`Pick a weapon or potion. Its rank rises by ${HEFT_BONUS}. Capped at rank 10 — no king-grade gear in this hold.`}
+      onCancel={onCancel}
+      cancelLabel="Step away"
+    >
+      <div>
+        <CardPickerGrid
+          cards={cards}
+          onPick={(c) => onConfirm(c.id)}
+        />
+        {cards.length === 0 && (
+          <div className="text-[12px] text-slate-500 italic">
+            No weapons or potions remain low enough to heft.
+          </div>
+        )}
+      </div>
     </ForgeViewShell>
   )
 }
@@ -456,6 +521,9 @@ function CardPickerGrid({ cards, selected, onPick }) {
             {c.transmuted && (
               <div className="text-[8px] text-rune uppercase tracking-wider">tm</div>
             )}
+            {c.hefted && (
+              <div className="text-[8px] text-rune uppercase tracking-wider">+{c.heftBonus}</div>
+            )}
           </button>
         )
       })}
@@ -472,6 +540,7 @@ function RunStatePanel({ game }) {
     game.boons.length === 0 &&
     game.strikes.length === 0 &&
     Object.keys(game.transmutes).length === 0 &&
+    Object.keys(game.hefts || {}).length === 0 &&
     !game.carriedWeapon &&
     !game.carriedSpareWeapon
 
@@ -524,6 +593,12 @@ function RunStatePanel({ game }) {
           <span className="text-rune">{Object.keys(game.transmutes).length}</span>
         </div>
       )}
+      {Object.keys(game.hefts || {}).length > 0 && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Hefts:</span>{' '}
+          <span className="text-rune">{Object.keys(game.hefts).length}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -564,6 +639,11 @@ function DescentView({ game, setGame }) {
 
   const theme = getTheme(game.theme)
 
+  const themeIronBones = (game.themeChildren
+    ? game.themeChildren.map(id => getTheme(id))
+    : [theme]
+  ).some(t => t && t.ironBones)
+
   return (
     <div className="space-y-5 animate-fade-in">
       <DescentHeader game={game} theme={theme} />
@@ -584,7 +664,7 @@ function DescentView({ game, setGame }) {
               weaponDamage = preview.weapon
               bareDamage = preview.bare
             }
-            const showBare = weaponDamage !== null
+            const showBare = weaponDamage !== null && !themeIronBones
             return (
               <CardSlot
                 key={i}
@@ -623,6 +703,9 @@ function DescentView({ game, setGame }) {
 }
 
 function DescentHeader({ game, theme }) {
+  const childNames = (game.themeChildren || [])
+    .map(id => getTheme(id)?.name)
+    .filter(Boolean)
   return (
     <header className="text-center space-y-3 pb-2">
       <div>
@@ -630,6 +713,9 @@ function DescentHeader({ game, theme }) {
         {theme && (
           <p className="text-[13px] text-slate-400 mt-1">
             Tonight: <span className="text-parchment">{theme.name}</span>
+            {childNames.length > 0 && (
+              <span className="text-slate-500"> — {childNames.join(' + ')}</span>
+            )}
           </p>
         )}
       </div>
@@ -686,6 +772,18 @@ function ConditionsPanel({ game, theme }) {
           <div className="text-slate-500 text-[10px] uppercase tracking-wider mb-0.5">Theme</div>
           <div className="text-rune font-semibold">{theme.name}</div>
           <div className="text-slate-400 text-[11px] mt-0.5 leading-snug">{theme.description}</div>
+          {game.themeChildren && (
+            <ul className="mt-1.5 space-y-0.5 pt-1.5 border-t border-stone-800">
+              {game.themeChildren.map(id => {
+                const c = getTheme(id)
+                return c && (
+                  <li key={id} className="text-[11px] text-slate-400 leading-snug">
+                    <span className="text-rune">{c.name}</span> — {c.description}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       )}
 
@@ -723,10 +821,14 @@ function ConditionsPanel({ game, theme }) {
           <ul className="space-y-1">
             {game.boons.map(id => {
               const b = BOONS[id]
+              const muted = game.mutedBoon === id
               return (
                 <li key={id} className="text-[11px] leading-snug">
-                  <span className="text-rune font-semibold">{b.name}</span>
-                  <span className="text-slate-400"> — {b.description}</span>
+                  <span className={muted ? 'text-slate-600 line-through font-semibold' : 'text-rune font-semibold'}>
+                    {b.name}
+                  </span>
+                  <span className={muted ? 'text-slate-600' : 'text-slate-400'}> — {b.description}</span>
+                  {muted && <span className="text-slate-500 italic"> (muted by Wormwood)</span>}
                 </li>
               )
             })}
@@ -742,6 +844,9 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
     return (
       <div className="aspect-[2/3] w-full max-w-[200px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
     )
+  }
+  if (card.faceDown) {
+    return <FaceDownCardSlot onClick={onClick} />
   }
   const red = card.suit === HEART || card.suit === DIAMOND
   const kind = isMonster(card) ? 'Monster' : isWeapon(card) ? 'Weapon' : isPotion(card) ? 'Potion' : ''
@@ -791,6 +896,26 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
           )}
         </button>
       )}
+    </div>
+  )
+}
+
+function FaceDownCardSlot({ onClick }) {
+  return (
+    <div className="w-full max-w-[200px] flex flex-col">
+      <button
+        onClick={onClick}
+        className="aspect-[2/3] rounded-lg border-2 border-stone-700 bg-gradient-to-br from-stone-900 via-stone-950 to-black p-4 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] hover:border-rune/50 shadow-md text-rune/60"
+      >
+        <div className="text-4xl leading-none font-display">?</div>
+        <div className="text-xs uppercase tracking-[0.2em] text-slate-500 text-center">
+          Face-down
+        </div>
+        <div className="text-5xl leading-none text-right text-rune/30">✦</div>
+      </button>
+      <div className="mt-2 text-[10px] text-slate-500 italic text-center leading-snug">
+        Played sight-unseen.
+      </div>
     </div>
   )
 }

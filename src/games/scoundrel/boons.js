@@ -41,7 +41,7 @@ export const BOONS = {
     name: 'Riposte',
     description: 'When a monster damages you, the next monster you fight deals half that much less damage (rounded down).',
     example: 'Take 4 from a monster → the next deals 2 less. Banked, then spent.',
-    tag: 'combat',
+    tag: 'build',
     riposte: true,
   },
   quartermaster: {
@@ -72,6 +72,8 @@ export const BOONS = {
     example: 'Triggers automatically the first time you drop low. A free heal at the worst moment.',
     tag: 'survival',
     secondWind: true,
+    // Temporarily removed from the offer pool.
+    disabled: true,
   },
   soothsayer: {
     id: 'soothsayer',
@@ -80,6 +82,8 @@ export const BOONS = {
     example: 'Know if the next card is a potion you need or a king you must flee.',
     tag: 'survival',
     soothsayer: true,
+    // Temporarily removed from the offer pool.
+    disabled: true,
   },
 
   // ---- Economy ---------------------------------------------------------
@@ -114,7 +118,7 @@ export const BOONS = {
     name: "Scoundrel's Cloak",
     description: 'Once per descent, you can flee 2 rooms in a row.',
     example: 'Chain two flees back-to-back to skip past two rooms.',
-    tag: 'build',
+    tag: 'survival',
     cloak: true,
   },
   glass_cannon: {
@@ -131,7 +135,7 @@ export const BOONS = {
     name: 'Twin Souls',
     description: 'Once per descent, a killing blow leaves you at 1 HP instead.',
     example: 'One extra life per descent. Resets between descents, not within one.',
-    tag: 'build',
+    tag: 'survival',
     twinSouls: true,
   },
   cartographer: {
@@ -141,6 +145,8 @@ export const BOONS = {
     example: 'Every flee, every refill becomes a calculation.',
     tag: 'build',
     cartographer: true,
+    // Temporarily removed from the offer pool.
+    disabled: true,
   },
 }
 

@@ -1,17 +1,17 @@
 import {
   HEART, DIAMOND, CLUB, SPADE,
   SUIT_GLYPH, RANK_LABEL,
-  BASE_MAX_HP, SIGIL_TARGET, FORGE_SIGILS,
-  isMonster, isWeapon, isPotion, rankLabel,
+  BASE_MAX_HP, SIGIL_TARGET, FORGE_SIGILS, ROOM_SIZE,
+  isMonster, isWeapon, isPotion, rankLabel, suitColor,
 } from './constants'
-import { THEMES, getTheme, pickThemeId } from './themes'
+import { THEMES, getTheme, getActiveThemes, pickThemeId, resolveThemeChildren } from './themes'
 import { BOONS, getBoon, pickBoonOffers } from './boons'
 
 export {
   HEART, DIAMOND, CLUB, SPADE,
   SUIT_GLYPH, RANK_LABEL,
-  BASE_MAX_HP, SIGIL_TARGET, FORGE_SIGILS,
-  isMonster, isWeapon, isPotion, rankLabel,
+  BASE_MAX_HP, SIGIL_TARGET, FORGE_SIGILS, ROOM_SIZE,
+  isMonster, isWeapon, isPotion, rankLabel, suitColor,
   THEMES, getTheme,
   BOONS, getBoon,
 }
@@ -39,50 +39,101 @@ export function shuffle(arr, rng = Math.random) {
   return a
 }
 
-// The "persistent deck" — base 44 minus strikes, with transmutes applied.
-// IDs are stable across these edits. Used by the Forge UI and as the starting
-// point for buildDescentDeck.
+// The "persistent deck" — base 44 minus strikes, with transmutes and hefts
+// applied. IDs are stable across these edits. Used by the Forge UI and as
+// the starting point for buildDescentDeck.
 export function computeCurrentDeck(state) {
   let deck = buildBaseDeck()
   const strikeSet = new Set(state.strikes)
   deck = deck.filter(c => !strikeSet.has(c.id))
   deck = deck.map(c => {
+    let result = c
     if (state.transmutes[c.id]) {
-      return {
-        ...c,
+      result = {
+        ...result,
         suit: state.transmutes[c.id],
         transmuted: true,
         originalSuit: c.suit,
       }
     }
-    return c
+    const heftBonus = state.hefts?.[c.id]
+    if (heftBonus) {
+      result = {
+        ...result,
+        rank: result.rank + heftBonus,
+        hefted: true,
+        heftBonus,
+        preHeftRank: c.rank,
+      }
+    }
+    return result
   })
   return deck
 }
 
+// -- Formatting --------------------------------------------------------
+
+function fmt(card) {
+  return `${rankLabel(card.rank)}${SUIT_GLYPH[card.suit]}`
+}
+
+// -- Theme helpers -----------------------------------------------------
+
+function activeThemes(state) {
+  return getActiveThemes(state.theme, state.themeChildren)
+}
+
+function themesFor(themeId, themeChildren) {
+  return getActiveThemes(themeId, themeChildren)
+}
+
+function themeFieldSum(themes, field) {
+  return themes.reduce((s, t) => s + (t[field] || 0), 0)
+}
+
+function themeFlagAny(themes, field) {
+  return themes.some(t => t[field])
+}
+
+function getRoomSize(themes) {
+  let size = ROOM_SIZE
+  for (const t of themes) {
+    if (t.roomSize && t.roomSize > size) size = t.roomSize
+  }
+  return size
+}
+
 // Themes that modify the deck return either a plain array (the new deck) or
-// an object `{ deck, log }` so they can emit per-card log lines. The result
-// is funneled into the descent's opening log via `descend`.
-function buildDescentDeck(state, themeId, rng) {
+// an object `{ deck, log }`. Compound themes chain through each child's
+// applyToDeck in order, accumulating log lines.
+function buildDescentDeck(state, themeId, themeChildren, rng) {
   let deck = computeCurrentDeck(state)
-  const theme = getTheme(themeId)
+  const themes = themesFor(themeId, themeChildren)
   let extraLog = []
-  if (theme?.applyToDeck) {
+  for (const theme of themes) {
+    if (!theme.applyToDeck) continue
     const result = theme.applyToDeck(deck, rng)
     if (Array.isArray(result)) {
       deck = result
     } else {
       deck = result.deck
-      extraLog = result.log || []
+      extraLog = extraLog.concat(result.log || [])
     }
   }
   return { deck: shuffle(deck, rng), log: extraLog }
 }
 
-// -- Boon / theme helpers ----------------------------------------------
+// -- Boon helpers ------------------------------------------------------
+
+// Wormwood mutes one Boon for the descent. activeBoons filters it out so
+// every effect-read consults the same gated list.
+function activeBoons(state) {
+  if (state.mutedBoon) return state.boons.filter(id => id !== state.mutedBoon)
+  return state.boons
+}
 
 function hasBoon(state, id) {
-  return state.boons.includes(id)
+  return activeBoons(state).includes(id)
 }
 
 function sumBoonField(boons, field) {
@@ -93,7 +144,6 @@ function maxBoonField(boons, field, baseline) {
 }
 
 function minMaxHpOverride(boons) {
-  // The lowest override wins (most restrictive). null if none.
   let acc = null
   for (const id of boons) {
     const o = BOONS[id]?.maxHpOverride
@@ -102,20 +152,26 @@ function minMaxHpOverride(boons) {
   return acc
 }
 
-function computeMaxHp(state, themeId = state.theme) {
-  const theme = getTheme(themeId)
-  const override = minMaxHpOverride(state.boons)
+function computeMaxHp(state, themeId = state.theme, themeChildren = state.themeChildren) {
+  const themes = themesFor(themeId, themeChildren)
+  const boons = activeBoons(state)
+  const override = minMaxHpOverride(boons)
   const base = override != null ? override : BASE_MAX_HP
-  return base + sumBoonField(state.boons, 'maxHpBonus') + (theme?.maxHpBonus || 0)
+  return base + sumBoonField(boons, 'maxHpBonus') + themeFieldSum(themes, 'maxHpBonus')
 }
 
 function computePotionsPerRoomLimit(boons) {
   return maxBoonField(boons, 'potionsPerRoom', 1)
 }
 
-function effectiveMonsterRank(card, themeId) {
-  const theme = getTheme(themeId)
-  return card.rank + (theme?.monsterRankBonus || 0)
+function effectiveMonsterRank(state, card) {
+  const themes = activeThemes(state)
+  let bonus = 0
+  for (const t of themes) {
+    bonus += t.monsterRankBonus || 0
+    bonus += t.monsterRankBonusBySuit?.[card.suit] || 0
+  }
+  return card.rank + bonus
 }
 
 function effectiveWeaponRank(weapon, boons) {
@@ -124,7 +180,7 @@ function effectiveWeaponRank(weapon, boons) {
 }
 
 function bonusVsSuitFor(state, card) {
-  for (const id of state.boons) {
+  for (const id of activeBoons(state)) {
     const b = BOONS[id]
     if (b?.bonusVsSuit && b.bonusVsSuit === card.suit) {
       return { amount: b.bonusVsSuitAmount || 0, name: b.name, id }
@@ -135,33 +191,30 @@ function bonusVsSuitFor(state, card) {
 
 // -- Weapon helpers ----------------------------------------------------
 
-function isWeaponBoundFor(weapon, monsterCard) {
+// Cracked Blade lifts the binding cap — the weapon swings at any monster,
+// but shatters if it kills above its previous high (handled in
+// applyMonsterFight). Without that theme, the usual lastSlain rule applies.
+function isWeaponBoundFor(state, weapon, monsterCard) {
   if (!weapon) return false
   if (!weapon.lastSlain) return true
+  if (themeFlagAny(activeThemes(state), 'crackedBlade')) return true
   return monsterCard.rank <= weapon.lastSlain.rank
 }
 
-// Returns the player's two weapons (primary, spare) as an array with nulls
-// filtered out. Order doesn't matter — callers should re-sort if they need to.
-function allWeapons(state) {
-  return [state.weapon, state.spareWeapon].filter(Boolean)
-}
-
 // Pick the best weapon for swinging at this monster.
-// Prefers the highest *effective* rank among usable weapons. Returns
-// { weapon, slot } where slot is 'primary' | 'spare'.
+// Prefers the highest *effective* rank among usable weapons.
 function pickBestWeaponFor(state, monsterCard) {
   const candidates = []
-  if (state.weapon && isWeaponBoundFor(state.weapon, monsterCard)) {
+  if (state.weapon && isWeaponBoundFor(state, state.weapon, monsterCard)) {
     candidates.push({ weapon: state.weapon, slot: 'primary' })
   }
-  if (state.spareWeapon && isWeaponBoundFor(state.spareWeapon, monsterCard)) {
+  if (state.spareWeapon && isWeaponBoundFor(state, state.spareWeapon, monsterCard)) {
     candidates.push({ weapon: state.spareWeapon, slot: 'spare' })
   }
   if (candidates.length === 0) return null
   return candidates.reduce((best, cur) => {
-    const a = effectiveWeaponRank(best.weapon, state.boons)
-    const b = effectiveWeaponRank(cur.weapon, state.boons)
+    const a = effectiveWeaponRank(best.weapon, activeBoons(state))
+    const b = effectiveWeaponRank(cur.weapon, activeBoons(state))
     return b > a ? cur : best
   })
 }
@@ -176,13 +229,79 @@ function appendLog(state, line) {
   return { ...state, log: [...(state.log || []), line].slice(-14) }
 }
 
-// -- Run lifecycle -----------------------------------------------------
+// -- HP loss / death checks --------------------------------------------
+
+// Apply pre-mitigated HP damage, honoring Twin Souls and Second Wind.
+// Used by combat, Tithe, and Apothecary's sour second potion.
+// Returns { state, dead }. If dead, state is already in gameover phase.
+function applyHpLoss(state, amount) {
+  let next = { ...state, hp: state.hp - amount }
+
+  if (next.hp <= 0 && hasBoon(next, 'twin_souls') && !next.twinSoulsUsed) {
+    next = appendLog({ ...next, hp: 1, twinSoulsUsed: true },
+      'Twin Souls — the second self steadies the body. You stand at 1 HP.')
+  }
+  if (next.hp <= 0) {
+    return { state: endDescentDeath({ ...next, hp: 0 }), dead: true }
+  }
+  if (next.hp > 0 && next.hp <= 3 && hasBoon(next, 'second_wind') && !next.secondWindUsed) {
+    next = appendLog({ ...next, hp: Math.min(next.maxHp, 6), secondWindUsed: true },
+      'Second Wind catches you — breath returns, HP steadies at 6.')
+  }
+  return { state: next, dead: false }
+}
+
+// -- Room entry effects -------------------------------------------------
+
+// Apply Tithe (HP loss), Oath (face-down first new card), Echo (extra
+// duplicate slot), and increment roomsEntered. Called once per time a new
+// room is presented to the player: initial descend, refill, or a flee.
+function applyRoomEntryEffects(state, room, firstNewIdx) {
+  const themes = activeThemes(state)
+  const roomsEntered = (state.roomsEntered || 0) + 1
+  let next = { ...state, roomsEntered }
+  let nextRoom = room.slice()
+
+  // Oath: mark the first newly-drawn card face-down.
+  if (themeFlagAny(themes, 'oath') && firstNewIdx != null && nextRoom[firstNewIdx]) {
+    nextRoom[firstNewIdx] = { ...nextRoom[firstNewIdx], faceDown: true }
+  }
+
+  // Echo: every Nth room, every monster in the room is duplicated and slid
+  // to the bottom of the deck. The dead come back round.
+  for (const t of themes) {
+    if (!t.echo) continue
+    if (roomsEntered % t.echo !== 0) continue
+    const monsters = nextRoom.filter(c => c && isMonster(c))
+    if (monsters.length === 0) continue
+    const dups = monsters.map(m => ({
+      ...m,
+      id: `${m.id}_echo${roomsEntered}`,
+      faceDown: false,
+    }))
+    next = { ...next, deck: next.deck.concat(dups) }
+    next = appendLog(next,
+      `Echo — ${monsters.map(fmt).join(', ')} ${monsters.length === 1 ? 'echoes' : 'echo'} to the bottom of the deck.`)
+  }
+
+  // Tithe: lose HP per room entered. Can kill (honors Twin Souls / Second Wind).
+  const titheLoss = themeFieldSum(themes, 'tithe')
+  if (titheLoss > 0) {
+    next = appendLog(next, `Tithe — the hall takes ${titheLoss} HP at the threshold.`)
+    const result = applyHpLoss(next, titheLoss)
+    return { state: result.state, room: nextRoom, dead: result.dead }
+  }
+
+  return { state: next, room: nextRoom, dead: false }
+}
+
+// -- Run lifecycle ------------------------------------------------------
 
 export function createRun(rng = Math.random) {
   // On the very first sanctuary visit (before descent 1) there is no Boon
-  // offer and no Forge — you haven't earned a sigil yet. Descent 1 of every
-  // run runs under "The Quiet" — a friendly warm-up theme that gives
-  // +10 max HP. Tier-1 themes start at descent 2.
+  // offer and no Forge. Descent 1 of every run runs under "The Quiet" — a
+  // friendly warm-up theme that gives +10 max HP. Tier-1 themes start at
+  // descent 2.
   const nextTheme = 'the_quiet'
 
   return {
@@ -192,12 +311,14 @@ export function createRun(rng = Math.random) {
     boons: [],
     strikes: [],
     transmutes: {},
+    hefts: {},
     carriedWeapon: null,
     carriedSpareWeapon: null,
     rng,
 
     boonOffers: [],
     nextTheme,
+    nextThemeChildren: null,
     forgeOpen: false,
     forgeUsed: false,
     boonChosen: true, // no Boon to pick on the opening visit
@@ -213,7 +334,11 @@ export function createRun(rng = Math.random) {
     canFlee: true,
     discard: [],
     theme: null,
+    themeChildren: null,
     monstersFoughtThisRoom: 0,
+    lastMonsterSuit: null,
+    roomsEntered: 0,
+    mutedBoon: null,
 
     // Per-descent transient charges (reset at descent start)
     riposteCharge: 0,
@@ -233,12 +358,25 @@ export function startNewRun(rng = Math.random) {
 
 export function descend(state) {
   if (state.phase !== 'sanctuary') return state
-  if (!state.boonChosen) return state // must pick a Boon first
+  if (!state.boonChosen) return state
 
   const themeId = state.nextTheme
-  const { deck, log: themeLog } = buildDescentDeck(state, themeId, state.rng)
-  const room = deck.splice(0, 4)
-  const maxHp = computeMaxHp(state, themeId)
+  const themeChildren = state.nextThemeChildren
+  const themes = themesFor(themeId, themeChildren)
+
+  const { deck: builtDeck, log: themeLog } = buildDescentDeck(state, themeId, themeChildren, state.rng)
+  const deck = builtDeck.slice()
+  const roomSize = getRoomSize(themes)
+  const room = deck.splice(0, roomSize)
+
+  // Wormwood mutes one random Boon for this descent. Decided first so the
+  // mute is in effect when computeMaxHp reads Iron Will / Glass Cannon.
+  let mutedBoon = null
+  if (themeFlagAny(themes, 'wormwood') && state.boons.length > 0) {
+    mutedBoon = state.boons[Math.floor(state.rng() * state.boons.length)]
+  }
+  const muteState = mutedBoon ? { ...state, mutedBoon } : state
+  const maxHp = computeMaxHp(muteState, themeId, themeChildren)
 
   // Carried weapons arrive rested (lastSlain cleared) — DESIGN.md §2.
   const weapon = state.carriedWeapon
@@ -248,12 +386,16 @@ export function descend(state) {
     ? { rank: state.carriedSpareWeapon.rank, originalRank: state.carriedSpareWeapon.originalRank, lastSlain: null }
     : null
 
-  const theme = getTheme(themeId)
-  const openingLine = theme
-    ? `You descend. Tonight, ${theme.name.toLowerCase()} is upon the halls.`
-    : 'You descend. The dungeon is quiet tonight; the deep dream is still asleep.'
+  const baseTheme = getTheme(themeId)
+  const baseLine = !baseTheme
+    ? 'You descend. The dungeon is quiet tonight; the deep dream is still asleep.'
+    : (themes.length > 1
+        ? `You descend. Tonight, ${baseTheme.name.toLowerCase()} is upon the halls — ${themes.map(t => t.name).join(' and ')}.`
+        : `You descend. Tonight, ${baseTheme.name.toLowerCase()} is upon the halls.`)
 
-  return {
+  const canFlee = !themeFlagAny(themes, 'cannotFlee')
+
+  let descentState = {
     ...state,
     phase: 'descent',
     hp: maxHp,
@@ -263,35 +405,50 @@ export function descend(state) {
     weapon,
     spareWeapon,
     potionsUsedThisRoom: 0,
-    canFlee: true,
+    canFlee,
     discard: [],
     theme: themeId,
+    themeChildren,
     monstersFoughtThisRoom: 0,
+    lastMonsterSuit: null,
+    roomsEntered: 0,
+    mutedBoon,
     forgeView: null,
     riposteCharge: 0,
     secondWindUsed: false,
     cloakUsed: false,
     twinSoulsUsed: false,
-    log: [openingLine, ...themeLog],
+    log: [baseLine, ...themeLog],
   }
+
+  if (mutedBoon) {
+    descentState = appendLog(descentState,
+      `Wormwood — ${BOONS[mutedBoon]?.name} falls silent this descent.`)
+  }
+
+  // Apply first-room entry effects with slot 0 as the "first new card".
+  const entry = applyRoomEntryEffects(descentState, descentState.room, 0)
+  if (entry.dead) return entry.state
+  return { ...entry.state, room: entry.room }
 }
 
 // -- Combat -------------------------------------------------------------
 
 // Returns the damage the player takes from this monster, given the chosen
-// weapon (or null for bare-handed). Applies Vanguard, Vendetta/Hunter and
-// Riposte in that order.
+// weapon (or null for bare-handed). Applies theme rank bonuses, Vanguard,
+// Vendetta/Hunter and Riposte in that order.
 function getMonsterDamage(state, monsterCard, weaponUsed) {
-  const effRank = effectiveMonsterRank(monsterCard, state.theme)
+  const effRank = effectiveMonsterRank(state, monsterCard)
+
   let dmg
   if (weaponUsed) {
-    const weapRank = effectiveWeaponRank(weaponUsed, state.boons)
+    const weapRank = effectiveWeaponRank(weaponUsed, activeBoons(state))
     dmg = Math.max(0, effRank - weapRank)
   } else {
     dmg = effRank
   }
   if (state.monstersFoughtThisRoom === 0) {
-    const reduction = maxBoonField(state.boons, 'vanguardReduction', 0)
+    const reduction = maxBoonField(activeBoons(state), 'vanguardReduction', 0)
     dmg = Math.max(0, dmg - reduction)
   }
   const suitBonus = bonusVsSuitFor(state, monsterCard)
@@ -307,21 +464,47 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
   const room = state.room.slice()
   room[index] = null
 
+  const themes = activeThemes(state)
+
   let next = {
     ...state,
     room,
     discard: state.discard.concat(monsterCard),
-    hp: state.hp - damage,
     monstersFoughtThisRoom: state.monstersFoughtThisRoom + 1,
-    // Riposte charge from THIS fight will be set below; previous charge has
-    // been consumed in getMonsterDamage.
+    lastMonsterSuit: monsterCard.suit,
     riposteCharge: 0,
   }
 
+  // Weapon update: under Cracked Blade, slaying above the weapon's own
+  // rank shatters it; otherwise lastSlain advances normally.
+  let weaponShattered = false
   if (chosen) {
-    const updated = { ...weaponUsed, lastSlain: { rank: monsterCard.rank } }
-    if (chosen.slot === 'primary') next.weapon = updated
-    else next.spareWeapon = updated
+    const shatters = themeFlagAny(themes, 'crackedBlade') && monsterCard.rank > weaponUsed.rank
+    if (shatters) {
+      weaponShattered = true
+      if (chosen.slot === 'primary') next.weapon = null
+      else next.spareWeapon = null
+    } else {
+      const updated = { ...weaponUsed, lastSlain: { rank: monsterCard.rank } }
+      if (chosen.slot === 'primary') next.weapon = updated
+      else next.spareWeapon = updated
+    }
+  }
+
+  // Carrion: slain monsters return once at rank 2 of their suit. Skip if
+  // this card is itself a carrion revenant — one return per original.
+  if (themeFlagAny(themes, 'carrion') && !monsterCard.carrioned) {
+    const revenant = {
+      suit: monsterCard.suit,
+      rank: 2,
+      id: `${monsterCard.id}_carrion`,
+      carrioned: true,
+    }
+    const deck = next.deck.slice()
+    const insertAt = deck.length === 0 ? 0 : Math.floor(state.rng() * (deck.length + 1))
+    deck.splice(insertAt, 0, revenant)
+    next = { ...next, deck }
+    next = appendLog(next, `Carrion — ${fmt(monsterCard)} stirs again in the deck as ${fmt(revenant)}.`)
   }
 
   const glyph = SUIT_GLYPH[monsterCard.suit]
@@ -330,8 +513,11 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     : 'bare-handed'
   next = appendLog(next, `Fought ${rankLabel(monsterCard.rank)}${glyph} ${how} — took ${damage}.`)
 
-  // Riposte: bank half this fight's actual damage (rounded down) for the
-  // next fight. Damage of 1 banks 0 — no Riposte effect from chip hits.
+  if (weaponShattered) {
+    next = appendLog(next, 'The blade shatters under the strain — Cracked Blade claims it.')
+  }
+
+  // Riposte: bank half this fight's actual damage (rounded down).
   if (hasBoon(next, 'riposte') && damage > 0) {
     const charge = Math.floor(damage / 2)
     if (charge > 0) {
@@ -340,29 +526,9 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     }
   }
 
-  // Twin Souls: a killing blow leaves you at 1 HP instead, once per descent.
-  if (next.hp <= 0 && hasBoon(next, 'twin_souls') && !next.twinSoulsUsed) {
-    next.hp = 1
-    next.twinSoulsUsed = true
-    next = appendLog(next, 'Twin Souls — the second self steadies the body. You stand at 1 HP.')
-  }
-
-  if (next.hp <= 0) {
-    next.hp = 0
-    return endDescentDeath(next)
-  }
-
-  // Second Wind: once per descent, dropping to 3 HP or less heals to 6.
-  if (
-    next.hp > 0 &&
-    next.hp <= 3 &&
-    hasBoon(next, 'second_wind') &&
-    !next.secondWindUsed
-  ) {
-    next.hp = Math.min(next.maxHp, 6)
-    next.secondWindUsed = true
-    next = appendLog(next, 'Second Wind catches you — breath returns, HP steadies at 6.')
-  }
+  const dmgResult = applyHpLoss(next, damage)
+  if (dmgResult.dead) return dmgResult.state
+  next = dmgResult.state
 
   return checkRefillAndComplete(next)
 }
@@ -372,22 +538,42 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
 function playPotion(state, index, card) {
   const room = state.room.slice()
   room[index] = null
-  const limit = computePotionsPerRoomLimit(state.boons)
+  const limit = computePotionsPerRoomLimit(activeBoons(state))
+  const themes = activeThemes(state)
+  const apothecary = themeFlagAny(themes, 'secondPotionDamages')
+  const bitterBrew = themeFlagAny(themes, 'potionHealHalf')
+  const playedNow = state.potionsUsedThisRoom
 
-  let next = { ...state, room, discard: state.discard.concat(card) }
+  let next = {
+    ...state,
+    room,
+    discard: state.discard.concat(card),
+    potionsUsedThisRoom: state.potionsUsedThisRoom + 1,
+  }
 
-  if (next.potionsUsedThisRoom < limit) {
-    const healed = Math.min(next.maxHp, next.hp + card.rank) - next.hp
+  // Apothecary: any potion after the first damages instead of healing.
+  if (apothecary && playedNow >= 1) {
+    const damage = card.rank
+    next = appendLog(next, `Sour draught — ${fmt(card)} bites back for ${damage}.`)
+    const result = applyHpLoss(next, damage)
+    if (result.dead) return result.state
+    return checkRefillAndComplete(result.state)
+  }
+
+  // Normal heal path — first potion always, plus extras up to Sip's limit.
+  if (playedNow < limit) {
+    const healAmount = bitterBrew ? Math.floor(card.rank / 2) : card.rank
+    const healed = Math.min(next.maxHp, next.hp + healAmount) - next.hp
     next.hp = next.hp + healed
-    next.potionsUsedThisRoom = next.potionsUsedThisRoom + 1
-    next = appendLog(next, `Drank potion ${rankLabel(card.rank)}♥ — restored ${healed} HP.`)
+    const note = bitterBrew ? 'bitter, ' : ''
+    next = appendLog(next, `Drank ${fmt(card)} — ${note}restored ${healed} HP.`)
   } else if (hasBoon(next, 'alchemist')) {
     const half = Math.ceil(card.rank / 2)
     const healed = Math.min(next.maxHp, next.hp + half) - next.hp
     next.hp = next.hp + healed
-    next = appendLog(next, `Potion ${rankLabel(card.rank)}♥ over your thirst — Alchemist drew ${healed} HP from its dregs.`)
+    next = appendLog(next, `Potion ${fmt(card)} over your thirst — Alchemist drew ${healed} HP from its dregs.`)
   } else {
-    next = appendLog(next, `Potion ${rankLabel(card.rank)}♥ wasted — no thirst left.`)
+    next = appendLog(next, `Potion ${fmt(card)} wasted — no thirst left.`)
   }
 
   return checkRefillAndComplete(next)
@@ -397,8 +583,8 @@ function playWeapon(state, index, card) {
   const room = state.room.slice()
   room[index] = null
 
-  const theme = getTheme(state.theme)
-  const rusty = theme?.weaponRankModifier || 0
+  const themes = activeThemes(state)
+  const rusty = themeFieldSum(themes, 'weaponRankModifier')
   const effectiveRank = Math.max(2, card.rank + rusty)
 
   const newWeapon = { rank: effectiveRank, originalRank: card.rank, lastSlain: null }
@@ -456,6 +642,10 @@ export function playCardBare(state, index) {
   if (state.phase !== 'descent') return state
   const card = state.room[index]
   if (!card || !isMonster(card)) return state
+  // Iron Bones forbids bare-handed fights while a usable weapon is equipped.
+  if (themeFlagAny(activeThemes(state), 'ironBones') && isWeaponUsable(state, card)) {
+    return state
+  }
   return applyMonsterFight(state, card, index, false)
 }
 
@@ -469,24 +659,40 @@ function checkRefillAndComplete(state) {
   }
 
   if (remaining.length === 1) {
-    // Preserve the surviving card's slot — keep state.room's layout (nulls
-    // included) and fill the empty positions left-to-right from the deck top.
-    // Without this, the leftover card visibly jumps to index 0 on every refill.
-    const deck = state.deck.slice()
-    const newRoom = state.room.slice()
+    const themes = activeThemes(state)
+    const targetSize = getRoomSize(themes)
+
+    // Rebuild a fixed-size room: place the leftover (in its old slot if it
+    // still fits, else slot 0), then fill the rest from the deck.
+    const leftover = state.room.find(Boolean)
+    const leftoverIdx = state.room.findIndex(c => c && c.id === leftover.id)
+    const slot = leftoverIdx < targetSize ? leftoverIdx : 0
+
+    const newRoom = new Array(targetSize).fill(null)
+    newRoom[slot] = leftover
+
+    let next = state
+    const deck = next.deck.slice()
+    let firstNewIdx = null
     for (let i = 0; i < newRoom.length; i++) {
       if (newRoom[i] === null && deck.length > 0) {
         newRoom[i] = deck.shift()
+        if (firstNewIdx === null) firstNewIdx = i
       }
     }
-    return {
-      ...state,
+
+    next = {
+      ...next,
       deck,
       room: newRoom,
       potionsUsedThisRoom: 0,
-      canFlee: true,
+      canFlee: !themeFlagAny(themes, 'cannotFlee'),
       monstersFoughtThisRoom: 0,
     }
+
+    const entry = applyRoomEntryEffects(next, next.room, firstNewIdx)
+    if (entry.dead) return entry.state
+    return { ...entry.state, room: entry.room }
   }
 
   return state
@@ -518,7 +724,8 @@ function endDescentVictory(state) {
   }
 
   const rng = state.rng
-  const nextTheme = pickThemeId(rng)
+  const nextTheme = pickThemeId(rng, newSigils)
+  const nextThemeChildren = resolveThemeChildren(nextTheme, rng)
   const boonOffers = pickBoonOffers(state.boons, 3, rng)
   const forgeOpen = FORGE_SIGILS.has(newSigils)
 
@@ -530,6 +737,7 @@ function endDescentVictory(state) {
       carriedWeapon,
       carriedSpareWeapon,
       nextTheme,
+      nextThemeChildren,
       boonOffers,
       forgeOpen,
       forgeUsed: false,
@@ -540,11 +748,15 @@ function endDescentVictory(state) {
       deck: [],
       room: [],
       theme: null,
+      themeChildren: null,
       weapon: null,
       spareWeapon: null,
       discard: [],
       potionsUsedThisRoom: 0,
       monstersFoughtThisRoom: 0,
+      lastMonsterSuit: null,
+      roomsEntered: 0,
+      mutedBoon: null,
       riposteCharge: 0,
       secondWindUsed: false,
       cloakUsed: false,
@@ -573,30 +785,33 @@ function pickPocketTarget(room) {
 export function fleeRoom(state) {
   if (state.phase !== 'descent') return state
   if (!state.canFlee) return state
+  const themes = activeThemes(state)
+  if (themeFlagAny(themes, 'cannotFlee')) return state
 
   const usingCloak = hasBoon(state, 'scoundrels_cloak') && !state.cloakUsed
+  const targetSize = getRoomSize(themes)
 
   if (hasBoon(state, 'pickpocket')) {
     const filled = state.room.filter(Boolean)
     const kept = pickPocketTarget(filled)
-    // Find the kept card's original slot so it doesn't shift when the rest of
-    // the room is refreshed from the deck.
     const keptIndex = kept ? state.room.findIndex(c => c && c.id === kept.id) : -1
     const others = kept ? filled.filter(c => c.id !== kept.id) : filled
     const deck = state.deck.concat(others)
 
-    const newRoom = [null, null, null, null]
-    if (kept && keptIndex >= 0) newRoom[keptIndex] = kept
+    const newRoom = new Array(targetSize).fill(null)
+    if (kept && keptIndex >= 0 && keptIndex < targetSize) newRoom[keptIndex] = kept
+    let firstNewIdx = null
     for (let i = 0; i < newRoom.length; i++) {
       if (newRoom[i] === null && deck.length > 0) {
         newRoom[i] = deck.shift()
+        if (firstNewIdx === null) firstNewIdx = i
       }
     }
 
     const note = kept
       ? `You retreat — palmed ${rankLabel(kept.rank)}${SUIT_GLYPH[kept.suit]} on the way out.`
       : 'You retreat. The room scatters back into the dark.'
-    return appendLog(
+    let next = appendLog(
       {
         ...state,
         deck,
@@ -608,13 +823,17 @@ export function fleeRoom(state) {
       },
       usingCloak ? `${note} (Scoundrel's Cloak — you can flee again.)` : note
     )
+
+    const entry = applyRoomEntryEffects(next, next.room, firstNewIdx)
+    if (entry.dead) return entry.state
+    return { ...entry.state, room: entry.room }
   }
 
   const carry = state.room.filter(Boolean)
   const deck = state.deck.concat(carry)
-  const room = deck.splice(0, 4)
+  const room = deck.splice(0, targetSize)
 
-  return appendLog(
+  let next = appendLog(
     {
       ...state,
       deck,
@@ -628,6 +847,10 @@ export function fleeRoom(state) {
       ? 'You retreat. The room scatters back into the dark. (Scoundrel\'s Cloak — you can flee again.)'
       : 'You retreat. The room scatters back into the dark.'
   )
+
+  const entry = applyRoomEntryEffects(next, next.room, 0)
+  if (entry.dead) return entry.state
+  return { ...entry.state, room: entry.room }
 }
 
 // -- Sanctuary actions -------------------------------------------------
@@ -657,6 +880,12 @@ export function closeForgeView(state) {
   return { ...state, forgeView: null }
 }
 
+// Strike's offering may match the monster's rank or fall up to this many
+// ranks below it — a lighter blade can still balance the carving, within
+// reason. K and A monsters are effectively immune since no offering reaches
+// their weight (rank ≤ 10 cap on hearts and diamonds).
+export const STRIKE_OFFERING_RANGE = 2
+
 export function applyStrike(state, monsterId, offeringId) {
   if (state.phase !== 'sanctuary' || !state.forgeOpen || state.forgeUsed) return state
   const current = computeCurrentDeck(state)
@@ -665,8 +894,8 @@ export function applyStrike(state, monsterId, offeringId) {
   if (!monster || !offering) return state
   if (!isMonster(monster)) return state
   if (!(isWeapon(offering) || isPotion(offering))) return state
-  if (monster.rank !== offering.rank) return state
-  if (monster.rank > 10) return state // face-card dead are immune
+  const diff = monster.rank - offering.rank
+  if (diff < 0 || diff > STRIKE_OFFERING_RANGE) return state
 
   const mGlyph = SUIT_GLYPH[monster.suit]
   const oGlyph = SUIT_GLYPH[offering.suit]
@@ -687,6 +916,9 @@ export function applyTransmute(state, cardId, newSuit) {
   const card = current.find(c => c.id === cardId)
   if (!card) return state
   if (card.suit === newSuit) return state
+  // Color-locked: ♥↔♦ and ♣↔♠ only. The threshold won't accept a
+  // cross-color carving — too far a reshape for the rite to hold.
+  if (suitColor(card.suit) !== suitColor(newSuit)) return state
 
   return appendLog(
     {
@@ -699,12 +931,37 @@ export function applyTransmute(state, cardId, newSuit) {
   )
 }
 
+export const HEFT_BONUS = 2
+export const HEFT_RANK_CAP = 10
+
+export function applyHeft(state, cardId) {
+  if (state.phase !== 'sanctuary' || !state.forgeOpen || state.forgeUsed) return state
+  const current = computeCurrentDeck(state)
+  const card = current.find(c => c.id === cardId)
+  if (!card) return state
+  if (!(isWeapon(card) || isPotion(card))) return state
+  if (card.rank + HEFT_BONUS > HEFT_RANK_CAP) return state
+  // Stack with any prior heft on this card (still capped).
+  const prior = state.hefts?.[cardId] || 0
+  const next = prior + HEFT_BONUS
+
+  return appendLog(
+    {
+      ...state,
+      hefts: { ...(state.hefts || {}), [cardId]: next },
+      forgeUsed: true,
+      forgeView: null,
+    },
+    `Hefted ${rankLabel(card.rank)}${SUIT_GLYPH[card.suit]} → ${rankLabel(card.rank + HEFT_BONUS)}${SUIT_GLYPH[card.suit]}.`
+  )
+}
+
 // -- Convenience inspection (used by UI) -------------------------------
 
 export function getStrikeOptions(state) {
   if (state.phase !== 'sanctuary' || !state.forgeOpen) return { monsters: [], byRank: {} }
   const current = computeCurrentDeck(state)
-  const monsters = current.filter(c => isMonster(c) && c.rank <= 10)
+  const monsters = current.filter(c => isMonster(c))
   const byRank = {}
   for (const c of current) {
     if (isWeapon(c) || isPotion(c)) {
@@ -720,18 +977,37 @@ export function getTransmuteOptions(state) {
   return computeCurrentDeck(state)
 }
 
+// Heft can target any weapon or potion whose rank, after the +2 bonus,
+// still respects the lore cap (no king-grade weapons or potions).
+export function getHeftOptions(state) {
+  if (state.phase !== 'sanctuary' || !state.forgeOpen) return []
+  return computeCurrentDeck(state).filter(
+    c => (isWeapon(c) || isPotion(c)) && c.rank + HEFT_BONUS <= HEFT_RANK_CAP
+  )
+}
+
 export function isWeaponUsableFor(state, card) {
   return isWeaponUsable(state, card)
 }
 
 export function previewMonsterDamage(state, card) {
   if (!card || !isMonster(card)) {
-    return { weapon: null, bare: { value: 0, parts: [], clamped: false } }
+    return { weapon: null, bare: { value: 0, parts: [], clamped: false }, faceDown: false }
+  }
+  if (card.faceDown) {
+    return { weapon: null, bare: null, faceDown: true }
   }
   const bare = describeDamage(state, card, null)
   const chosen = pickBestWeaponFor(state, card)
   const weapon = chosen ? describeDamage(state, card, chosen.weapon) : null
-  return { weapon, bare }
+  return { weapon, bare, faceDown: false }
+}
+
+// Returns the resolved list of active themes for this descent — the parent
+// for single-theme nights, or the children of a compound theme like
+// The Long Night. UI uses this to display "tonight's air" expansively.
+export function getActiveThemesForState(state) {
+  return activeThemes(state)
 }
 
 // -- Numeric breakdown helpers (for UI transparency) -------------------
@@ -744,26 +1020,26 @@ function sumParts(parts) {
 }
 
 export function describeMaxHp(state) {
-  const override = minMaxHpOverride(state.boons)
+  const boons = activeBoons(state)
+  const override = minMaxHpOverride(boons)
   const baseValue = override != null ? override : BASE_MAX_HP
   const overrideBoon = override != null
-    ? state.boons.find(id => BOONS[id]?.maxHpOverride === override)
+    ? boons.find(id => BOONS[id]?.maxHpOverride === override)
     : null
   const baseLabel = overrideBoon ? BOONS[overrideBoon].name : 'base'
 
   const parts = [{ label: baseLabel, value: baseValue, op: '+' }]
-  for (const id of state.boons) {
+  for (const id of boons) {
     const bonus = BOONS[id]?.maxHpBonus || 0
     if (bonus > 0) parts.push({ label: BOONS[id].name, value: bonus, op: '+' })
     else if (bonus < 0) parts.push({ label: BOONS[id].name, value: -bonus, op: '-' })
   }
-  const theme = getTheme(state.theme)
-  if (theme?.maxHpBonus) {
-    const bonus = theme.maxHpBonus
+  for (const t of activeThemes(state)) {
+    if (!t.maxHpBonus) continue
     parts.push({
-      label: theme.name,
-      value: Math.abs(bonus),
-      op: bonus > 0 ? '+' : '-',
+      label: t.name,
+      value: Math.abs(t.maxHpBonus),
+      op: t.maxHpBonus > 0 ? '+' : '-',
     })
   }
   return { value: Math.max(0, sumParts(parts)), parts }
@@ -773,7 +1049,7 @@ export function describeMaxHp(state) {
 export function describeWeaponStrength(state, weapon = state.weapon) {
   if (!weapon) return null
   const parts = [{ label: 'base', value: weapon.rank, op: '+' }]
-  for (const id of state.boons) {
+  for (const id of activeBoons(state)) {
     const bonus = BOONS[id]?.weaponRankBonus || 0
     if (bonus > 0) parts.push({ label: BOONS[id].name, value: bonus, op: '+' })
     else if (bonus < 0) parts.push({ label: BOONS[id].name, value: -bonus, op: '-' })
@@ -781,15 +1057,17 @@ export function describeWeaponStrength(state, weapon = state.weapon) {
   return { value: Math.max(0, sumParts(parts)), parts }
 }
 
-// `weaponUsed` is now the actual weapon object (or null for bare-handed).
+// `weaponUsed` is the actual weapon object (or null for bare-handed).
 export function describeDamage(state, card, weaponUsed) {
   const parts = []
   parts.push({ label: 'monster', value: card.rank, op: '+' })
 
-  const theme = getTheme(state.theme)
-  const themeBonus = theme?.monsterRankBonus || 0
-  if (themeBonus && theme) {
-    parts.push({ label: theme.name, value: Math.abs(themeBonus), op: themeBonus < 0 ? '-' : '+' })
+  const themes = activeThemes(state)
+  for (const t of themes) {
+    const bonus = t.monsterRankBonus || 0
+    if (bonus) parts.push({ label: t.name, value: Math.abs(bonus), op: bonus < 0 ? '-' : '+' })
+    const suitBonus = t.monsterRankBonusBySuit?.[card.suit] || 0
+    if (suitBonus) parts.push({ label: t.name, value: Math.abs(suitBonus), op: suitBonus < 0 ? '-' : '+' })
   }
 
   if (weaponUsed) {
@@ -798,7 +1076,7 @@ export function describeDamage(state, card, weaponUsed) {
   }
 
   if (state.monstersFoughtThisRoom === 0) {
-    for (const id of state.boons) {
+    for (const id of activeBoons(state)) {
       const reduction = BOONS[id]?.vanguardReduction || 0
       if (reduction) {
         parts.push({ label: BOONS[id].name, value: reduction, op: '-' })
