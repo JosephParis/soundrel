@@ -247,6 +247,7 @@ Each step is shippable; the game stays playable at every stage.
 
 - **Should the dungeon ever do something permanent?** v1 says no — themes are transient, Boons/Forge are permanent, asymmetric. But a late-run "Scar" mechanic (the dungeon permanently mutates the deck after every Nth descent) could match the player's authorship and raise the ceiling. Worth prototyping after step 5 if the player feels too powerful late.
 - **Counterplay coverage** — does every theme actually have a Boon that wants it? Audit this when the pools are filled out.
+- **Quartermaster swap rule** — when both weapon slots are full and you pick up a third, v1 discards the *oldest* (the spare). Consider discarding the *worst* (lowest effective rank) instead — that's likely what the player would manually pick, and the current rule punishes them for sequencing a low → high → high pickup. Counter-argument: auto-discarding the worst removes a real decision the player might want to make (e.g. keep a low-rank weapon precisely because its binding is still clean). If we ship the worst-replaced rule, it should be clearly communicated in the boon description.
 
 ## 10. Deferred
 

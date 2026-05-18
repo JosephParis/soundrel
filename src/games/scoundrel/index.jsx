@@ -47,6 +47,76 @@ function Formula({ parts, className }) {
   )
 }
 
+// Border color by card type — monsters deep green, weapons cool gray, potions deep purple.
+function cardBorderTone(card) {
+  if (!card) return 'border-stone-700'
+  if (isMonster(card)) return 'border-green-700'
+  if (isWeapon(card)) return 'border-gray-500'
+  if (isPotion(card)) return 'border-purple-700'
+  return 'border-stone-700'
+}
+
+// Skull — single closed outline path for the cranium, cheekbones, and three-tooth
+// jaw. Eyes and nose are stroke-only too (no fill="currentColor"), so every part
+// of the icon paints at the same uniform opacity. Previously, mixing fill and
+// stroke on tiny shapes (eyes, nose) caused them to render visibly darker than
+// the outline — fill + stroke compounded the color at the overlap.
+function SkullIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 3a9 9 0 0 0-9 9v4a2 2 0 0 0 2 2v3h3v-2h2v2h4v-2h2v2h3v-3a2 2 0 0 0 2-2v-4a9 9 0 0 0-9-9z" />
+      <circle cx="9" cy="12" r="1.4" />
+      <circle cx="15" cy="12" r="1.4" />
+      <path d="M12 15l-1.2 2.2h2.4z" />
+    </svg>
+  )
+}
+
+function SwordIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+      <line x1="13" x2="19" y1="19" y2="13" />
+      <line x1="16" x2="20" y1="16" y2="20" />
+      <line x1="19" x2="21" y1="21" y2="19" />
+    </svg>
+  )
+}
+
+function PotionIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" />
+      <path d="M6.453 15h11.094" />
+      <path d="M8.5 2h7" />
+    </svg>
+  )
+}
+
+// Faded type-glyph behind the card face. Color matches the border (green for
+// monsters, silver for weapons, purple for potions) at low opacity.
+function CardWatermark({ card }) {
+  if (!card) return null
+  let Icon, colorClass
+  if (isMonster(card)) {
+    Icon = SkullIcon
+    colorClass = 'text-green-700/30'
+  } else if (isWeapon(card)) {
+    Icon = SwordIcon
+    colorClass = 'text-gray-500/40'
+  } else if (isPotion(card)) {
+    Icon = PotionIcon
+    colorClass = 'text-purple-700/30'
+  } else {
+    return null
+  }
+  return (
+    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${colorClass}`}>
+      <Icon className="w-3/5 h-3/5" />
+    </div>
+  )
+}
+
 // ============================================================
 // Root
 // ============================================================
@@ -254,15 +324,19 @@ function BoonCard({ boon, onPick }) {
   return (
     <button
       onClick={onPick}
-      className="group aspect-[2/3] w-full max-w-[220px] text-left rounded-lg border border-stone-700 bg-gradient-to-b from-stone-900 to-stone-950 p-5 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:-translate-y-1 transition-all duration-200 shadow-md hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)] flex flex-col relative overflow-hidden"
+      className="group aspect-[2/3] w-full max-w-[230px] text-left rounded-lg border border-stone-700 bg-gradient-to-b from-stone-900 to-stone-950 p-5 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:-translate-y-1 transition-all duration-200 shadow-md hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)] flex flex-col relative overflow-hidden"
     >
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/40 to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/20 to-transparent" />
-      <div className="font-display text-rune text-lg leading-tight group-hover:text-rune">
-        {boon.name}
-      </div>
+      <div className="font-display text-rune text-lg leading-tight">{boon.name}</div>
       <div className="h-px bg-stone-700 my-3" />
-      <div className="text-[13px] text-slate-300 leading-relaxed flex-1">{boon.description}</div>
+      <div className="text-[13px] text-slate-200 leading-snug">{boon.description}</div>
+      {boon.example && (
+        <div className="mt-3 text-[11.5px] text-slate-400 italic leading-snug border-l-2 border-rune/30 pl-2.5">
+          {boon.example}
+        </div>
+      )}
+      <div className="flex-1" />
       {tag && (
         <div className="mt-3 pt-3 border-t border-stone-800 text-[10px] uppercase tracking-[0.2em] text-slate-500 group-hover:text-rune/70 transition">
           {tag}
@@ -430,17 +504,18 @@ function CardPickerGrid({ cards, selected, onPick }) {
           <button
             key={c.id}
             onClick={() => onPick(c)}
-            className={`aspect-[2/3] rounded border p-1 flex flex-col justify-between text-left transition ${
+            className={`relative overflow-hidden aspect-[2/3] rounded border-2 p-1 flex flex-col justify-between text-left transition ${
               isSelected
                 ? 'border-rune bg-stone-700'
-                : 'border-stone-700 bg-stone-900 hover:bg-stone-800 hover:border-stone-500'
+                : `${cardBorderTone(c)} bg-stone-900 hover:bg-stone-800`
             }`}
           >
-            <div className={`text-sm font-bold leading-none ${red ? 'text-blood' : 'text-parchment'}`}>
+            <CardWatermark card={c} />
+            <div className={`relative text-sm font-bold leading-none ${red ? 'text-blood' : 'text-parchment'}`}>
               {rankLabel(c.rank)}{SUIT_GLYPH[c.suit]}
             </div>
             {c.transmuted && (
-              <div className="text-[8px] text-rune uppercase tracking-wider">tm</div>
+              <div className="relative text-[8px] text-rune uppercase tracking-wider">tm</div>
             )}
           </button>
         )
@@ -740,12 +815,13 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
     <div className="w-full max-w-[200px] flex flex-col">
       <button
         onClick={onClick}
-        className="aspect-[2/3] rounded-lg border border-stone-600 bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-4 flex flex-col justify-between text-left transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] shadow-md"
+        className={`relative overflow-hidden aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-4 flex flex-col justify-between text-left transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] shadow-md`}
       >
-        <div className={`text-4xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+        <CardWatermark card={card} />
+        <div className={`relative text-4xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
         </div>
-        <div className="text-xs uppercase tracking-[0.2em] text-stone-600 text-center flex flex-col items-center gap-0.5">
+        <div className="relative text-xs uppercase tracking-[0.2em] text-stone-600 text-center flex flex-col items-center gap-0.5">
           <span>{kind}</span>
           {previewDesc && (
             <>
@@ -760,7 +836,7 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
             </>
           )}
         </div>
-        <div className={`text-6xl text-right leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+        <div className={`relative text-6xl text-right leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {SUIT_GLYPH[card.suit]}
         </div>
       </button>
@@ -785,19 +861,29 @@ function WeaponBlock({ game, weapon, label }) {
   const strength = describeWeaponStrength(game, weapon)
   const lastSlain = weapon.lastSlain
   return (
-    <div className="text-sm space-y-0.5">
-      {label && (
-        <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
-      )}
-      <div className="font-mono text-rune text-base">{rankLabel(weapon.rank)}♦</div>
-      <div className="text-[11px] text-slate-400">
-        Strikes as <span className="text-parchment font-mono">{strength.value}</span>{' '}
-        <Formula parts={strength.parts} />
+    <div className="flex items-center gap-3">
+      <div className="text-sm space-y-0.5 flex-1 min-w-0">
+        {label && (
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+        )}
+        <div className="font-mono text-rune text-base">{rankLabel(weapon.rank)}♦</div>
+        <div className="text-[11px] text-slate-400">
+          Strikes as <span className="text-parchment font-mono">{strength.value}</span>{' '}
+          <Formula parts={strength.parts} />
+        </div>
+        <div className="text-[11px] text-slate-500">
+          {lastSlain
+            ? `Bound to rank ${rankLabel(lastSlain.rank)} or lower.`
+            : 'Ready — will swing for any foe.'}
+        </div>
       </div>
-      <div className="text-[11px] text-slate-500">
-        {lastSlain
-          ? `Bound to rank ${rankLabel(lastSlain.rank)} or lower.`
-          : 'Ready — will swing for any foe.'}
+      <div
+        className={`font-mono font-bold leading-none shrink-0 text-center text-4xl w-12 ${
+          lastSlain ? 'text-parchment' : 'text-stone-700'
+        }`}
+        aria-label={lastSlain ? `Bound to ${rankLabel(lastSlain.rank)}` : 'No binding'}
+      >
+        {lastSlain ? rankLabel(lastSlain.rank) : '—'}
       </div>
     </div>
   )
@@ -835,11 +921,12 @@ function WeaponPanel({ game }) {
 function MiniCard({ card }) {
   const red = card.suit === HEART || card.suit === DIAMOND
   return (
-    <div className="aspect-[2/3] w-11 rounded-sm border border-stone-600 bg-parchment text-stone-900 px-1 py-0.5 flex flex-col justify-between shadow">
-      <div className={`text-[11px] font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+    <div className={`relative overflow-hidden aspect-[2/3] w-11 rounded-sm border-2 ${cardBorderTone(card)} bg-parchment text-stone-900 px-1 py-0.5 flex flex-col justify-between shadow`}>
+      <CardWatermark card={card} />
+      <div className={`relative text-[11px] font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
         {rankLabel(card.rank)}
       </div>
-      <div className={`text-sm leading-none text-right ${red ? 'text-blood' : 'text-stone-900'}`}>
+      <div className={`relative text-sm leading-none text-right ${red ? 'text-blood' : 'text-stone-900'}`}>
         {SUIT_GLYPH[card.suit]}
       </div>
     </div>
@@ -956,6 +1043,11 @@ function RulesContent() {
         descent — to escape the hold. Die in the dungeon and the run ends.
       </p>
 
+      <RuleSection title="The deck">
+        <RuleRow term="Size">44 cards. The red face cards (J/Q/K of ♥ and ♦) are removed — no king-weapons, no queen-potions in this hold.</RuleRow>
+        <RuleRow term="Ranks">2–10 as printed. J = 11, Q = 12, K = 13, A = 14.</RuleRow>
+      </RuleSection>
+
       <RuleSection title="The cards">
         <RuleRow term="♥ Potion"><span className="text-slate-500">Heals HP = rank.</span> Only the first potion per room heals; extras are wasted.</RuleRow>
         <RuleRow term="♦ Weapon"><span className="text-slate-500">Equips it.</span> Replaces your current weapon — the old one is gone.</RuleRow>
@@ -996,6 +1088,23 @@ function RulesContent() {
           option is <span className="text-rune">"Bare hands"</span>, taking the full rank.
           Taking up a new weapon resets the binding.
         </p>
+
+        <div className="mt-3 panel p-3 text-[12px] space-y-2">
+          <div className="text-rune text-[10px] uppercase tracking-[0.2em]">Worked example</div>
+          <div className="text-slate-300">
+            Take up a <span className="font-mono text-parchment">7♦</span>. Fresh blade — swings at anything.
+          </div>
+          <div className="text-slate-300">
+            Fight a <span className="font-mono text-parchment">9♠</span>. You swing — take <span className="font-mono">9 − 7 = 2</span> damage. The blade binds: rank <span className="font-mono">9</span> or lower from now on.
+          </div>
+          <div className="text-slate-300">
+            Next room: a <span className="font-mono text-parchment">10♣</span>. Card-click is locked. Your options: Bare hands (eat 10), or take up a new weapon, or flee.
+          </div>
+          <div className="text-slate-300">
+            You grab an <span className="font-mono text-parchment">8♦</span>. Binding resets — fresh blade again, swings at anything until its first kill.
+          </div>
+        </div>
+
         <p className="text-slate-400 text-[12px] mt-2">
           Sometimes "Bare hands" is the right call even when you could swing — eat a mid-rank
           monster to keep the blade's edge clean for the king you can see waiting in the room.
@@ -1124,11 +1233,18 @@ function BoonsGlossary() {
             </h3>
             <span className="text-[11px] text-slate-500">{BOON_TAG_META[tag].blurb}</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2.5">
             {byTag[tag].map(b => (
               <div key={b.id} className="grid grid-cols-[8.5rem_1fr] gap-x-3">
                 <div className="text-rune font-semibold">{b.name}</div>
-                <div className="text-slate-300">{b.description}</div>
+                <div>
+                  <div className="text-slate-300">{b.description}</div>
+                  {b.example && (
+                    <div className="text-slate-500 text-[12px] italic leading-snug mt-0.5">
+                      {b.example}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

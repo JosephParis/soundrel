@@ -455,10 +455,15 @@ function checkRefillAndComplete(state) {
   }
 
   if (remaining.length === 1) {
-    const newRoom = remaining.slice()
+    // Preserve the surviving card's slot — keep state.room's layout (nulls
+    // included) and fill the empty positions left-to-right from the deck top.
+    // Without this, the leftover card visibly jumps to index 0 on every refill.
     const deck = state.deck.slice()
-    while (newRoom.length < 4 && deck.length > 0) {
-      newRoom.push(deck.shift())
+    const newRoom = state.room.slice()
+    for (let i = 0; i < newRoom.length; i++) {
+      if (newRoom[i] === null && deck.length > 0) {
+        newRoom[i] = deck.shift()
+      }
     }
     return {
       ...state,
@@ -558,15 +563,22 @@ export function fleeRoom(state) {
   const usingCloak = hasBoon(state, 'scoundrels_cloak') && !state.cloakUsed
 
   if (hasBoon(state, 'pickpocket')) {
-    const room = state.room.filter(Boolean)
-    const kept = pickPocketTarget(room)
-    const others = kept ? room.filter(c => c.id !== kept.id) : room
+    const filled = state.room.filter(Boolean)
+    const kept = pickPocketTarget(filled)
+    // Find the kept card's original slot so it doesn't shift when the rest of
+    // the room is refreshed from the deck.
+    const keptIndex = kept ? state.room.findIndex(c => c && c.id === kept.id) : -1
+    const others = kept ? filled.filter(c => c.id !== kept.id) : filled
     const deck = state.deck.concat(others)
-    const newRoom = []
-    if (kept) newRoom.push(kept)
-    while (newRoom.length < 4 && deck.length > 0) {
-      newRoom.push(deck.shift())
+
+    const newRoom = [null, null, null, null]
+    if (kept && keptIndex >= 0) newRoom[keptIndex] = kept
+    for (let i = 0; i < newRoom.length; i++) {
+      if (newRoom[i] === null && deck.length > 0) {
+        newRoom[i] = deck.shift()
+      }
     }
+
     const note = kept
       ? `You retreat — palmed ${rankLabel(kept.rank)}${SUIT_GLYPH[kept.suit]} on the way out.`
       : 'You retreat. The room scatters back into the dark.'
