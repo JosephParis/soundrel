@@ -90,7 +90,13 @@ Each descent runs with one **Theme** — a deck-and-rules mutation that lasts on
 
 Themes are roughly tiered:
 
-### Tier 1 — Light (descents 1–3)
+### Descent 1 — The Quiet (always)
+The opening descent of every run runs under a fixed warm-up theme:
+- **The Quiet** — The deep dream is still asleep. Max HP +10 for the descent. The dungeon adds no harmful modifiers.
+
+Not in any tier pool — never rolled by the dungeon. Always assigned to descent 1 by `createRun`.
+
+### Tier 1 — Light (descents 2–3)
 Single deck bias, no rule changes. Used to teach the system.
 - **The Crypt** — +2 spade face cards seeded into the deck; one heart removed.
 - **The Armory** — +3 diamonds in the deck; one club removed.
@@ -120,7 +126,9 @@ Tier 2 effects pair up; weirder rules.
 
 ### How the dungeon picks
 
-The theme isn't random within the run — the dungeon escalates. The first descent always picks a Tier 1; the tier ceiling rises with sigils earned. The player sees the upcoming theme in the sanctuary and can spend their Boon choice as counterplay (e.g., "I see Bitter Brew next, take the Alchemist Boon").
+**Descent 1 of every run always runs under The Quiet** (see above). It's a deliberate warm-up — the deep dream is still asleep, the player gets +10 max HP, the dungeon adds nothing harmful. The Quiet is never rolled by the dungeon for any other descent.
+
+From descent 2 onward, the dungeon escalates. Descents 2–3 always pick a Tier 1 theme; the tier ceiling rises with sigils earned. The player sees the upcoming theme in the sanctuary and can spend their Boon choice as counterplay (e.g., "I see Bitter Brew next, take the Alchemist Boon").
 
 Design rule: **every theme should have at least one Boon that *wants* it.** A theme without counterplay isn't a challenge, it's a tax. Iron Bones wants Quartermaster (two weapons). Hungry Dark wants Cartographer (foresight). Cramped Halls wants Vanguard (first-hit shield). Bitter Brew wants Alchemist (passive potion healing). When we add a theme, we either find or invent its counterplay Boon.
 
@@ -205,16 +213,11 @@ Things to tune once the systems are real:
 - **Forge cadence** — three openings per run at sigils 2/4/6. Could move to 2/3/5/6 if the player needs more deck control late.
 - **Sigils required to escape** — currently 7. Lower for a tighter run; raise for a longer one. Daily-seed mode could mutate this.
 
-### First-run softeners
+### Opening-descent buff (every run)
 
-The very first run (tracked by a one-time `firstRunDone` flag, persisted to localStorage) applies two small softeners so a new player isn't immediately wiped:
+The opening-descent max HP buff has been promoted into the theme system as **The Quiet** (see §3) and bumped to +10. It applies to descent 1 of *every* run, not just the first time playing. The localStorage `firstRunDone` flag is gone; there's no longer a one-time onboarding window.
 
-- **Descent 1 has no theme.** The first descent is pure base Scoundrel — no deck mutation, no rule changes. The dungeon stirs starting descent 2.
-- **Max HP +3.** The player starts at 23/23 instead of 20/20 for the duration of the run.
-
-Once the first run ends (win or die), the flag flips and subsequent runs face the full system. The flag never resets — these are onboarding aids, not a difficulty toggle.
-
-Knobs if first-run still feels too rough on playtest: layer in a starter Boon, push descent 2 to a guaranteed-gentle Tier 1 theme, or extend the softeners to runs 1 and 2.
+A tutorial-flavoured starter-room buff (guaranteed weapon + potion in the opening hand) was prototyped and removed — keep on the shelf for a real tutorial pass later.
 
 ## 7. Meta-progression (between runs)
 

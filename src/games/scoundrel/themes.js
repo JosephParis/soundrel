@@ -1,6 +1,15 @@
 import { HEART, DIAMOND, CLUB, SPADE } from './constants'
 
 export const THEMES = {
+  // The opening-descent theme. Assigned to descent 1 of every run by
+  // createRun(); not in any tier pool, so the dungeon never rolls it.
+  the_quiet: {
+    id: 'the_quiet',
+    name: 'The Quiet',
+    description: "The deep dream is still asleep. The Saint's wards bleed warmth into your bones — max HP +10.",
+    maxHpBonus: 10,
+  },
+
   the_crypt: {
     id: 'the_crypt',
     name: 'The Crypt',
