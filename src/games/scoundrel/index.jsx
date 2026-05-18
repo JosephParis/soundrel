@@ -56,66 +56,6 @@ function cardBorderTone(card) {
   return 'border-stone-700'
 }
 
-// Skull — single closed outline path for the cranium, cheekbones, and three-tooth
-// jaw. Eyes and nose are stroke-only too (no fill="currentColor"), so every part
-// of the icon paints at the same uniform opacity. Previously, mixing fill and
-// stroke on tiny shapes (eyes, nose) caused them to render visibly darker than
-// the outline — fill + stroke compounded the color at the overlap.
-function SkullIcon({ className }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3a9 9 0 0 0-9 9v4a2 2 0 0 0 2 2v3h3v-2h2v2h4v-2h2v2h3v-3a2 2 0 0 0 2-2v-4a9 9 0 0 0-9-9z" />
-      <circle cx="9" cy="12" r="1.4" />
-      <circle cx="15" cy="12" r="1.4" />
-      <path d="M12 15l-1.2 2.2h2.4z" />
-    </svg>
-  )
-}
-
-function SwordIcon({ className }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
-      <line x1="13" x2="19" y1="19" y2="13" />
-      <line x1="16" x2="20" y1="16" y2="20" />
-      <line x1="19" x2="21" y1="21" y2="19" />
-    </svg>
-  )
-}
-
-function PotionIcon({ className }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" />
-      <path d="M6.453 15h11.094" />
-      <path d="M8.5 2h7" />
-    </svg>
-  )
-}
-
-// Faded type-glyph behind the card face. Color matches the border (green for
-// monsters, silver for weapons, purple for potions) at low opacity.
-function CardWatermark({ card }) {
-  if (!card) return null
-  let Icon, colorClass
-  if (isMonster(card)) {
-    Icon = SkullIcon
-    colorClass = 'text-green-700/30'
-  } else if (isWeapon(card)) {
-    Icon = SwordIcon
-    colorClass = 'text-gray-500/40'
-  } else if (isPotion(card)) {
-    Icon = PotionIcon
-    colorClass = 'text-purple-700/30'
-  } else {
-    return null
-  }
-  return (
-    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${colorClass}`}>
-      <Icon className="w-3/5 h-3/5" />
-    </div>
-  )
-}
 
 // ============================================================
 // Root
@@ -504,18 +444,17 @@ function CardPickerGrid({ cards, selected, onPick }) {
           <button
             key={c.id}
             onClick={() => onPick(c)}
-            className={`relative overflow-hidden aspect-[2/3] rounded border-2 p-1 flex flex-col justify-between text-left transition ${
+            className={`aspect-[2/3] rounded border-2 p-1 flex flex-col justify-between text-left transition ${
               isSelected
                 ? 'border-rune bg-stone-700'
                 : `${cardBorderTone(c)} bg-stone-900 hover:bg-stone-800`
             }`}
           >
-            <CardWatermark card={c} />
-            <div className={`relative text-sm font-bold leading-none ${red ? 'text-blood' : 'text-parchment'}`}>
+            <div className={`text-sm font-bold leading-none ${red ? 'text-blood' : 'text-parchment'}`}>
               {rankLabel(c.rank)}{SUIT_GLYPH[c.suit]}
             </div>
             {c.transmuted && (
-              <div className="relative text-[8px] text-rune uppercase tracking-wider">tm</div>
+              <div className="text-[8px] text-rune uppercase tracking-wider">tm</div>
             )}
           </button>
         )
@@ -815,13 +754,12 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
     <div className="w-full max-w-[200px] flex flex-col">
       <button
         onClick={onClick}
-        className={`relative overflow-hidden aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-4 flex flex-col justify-between text-left transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] shadow-md`}
+        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-4 flex flex-col justify-between text-left transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] shadow-md`}
       >
-        <CardWatermark card={card} />
-        <div className={`relative text-4xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+        <div className={`text-4xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
         </div>
-        <div className="relative text-xs uppercase tracking-[0.2em] text-stone-600 text-center flex flex-col items-center gap-0.5">
+        <div className="text-xs uppercase tracking-[0.2em] text-stone-600 text-center flex flex-col items-center gap-0.5">
           <span>{kind}</span>
           {previewDesc && (
             <>
@@ -836,7 +774,7 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
             </>
           )}
         </div>
-        <div className={`relative text-6xl text-right leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+        <div className={`text-6xl text-right leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {SUIT_GLYPH[card.suit]}
         </div>
       </button>
@@ -921,12 +859,11 @@ function WeaponPanel({ game }) {
 function MiniCard({ card }) {
   const red = card.suit === HEART || card.suit === DIAMOND
   return (
-    <div className={`relative overflow-hidden aspect-[2/3] w-11 rounded-sm border-2 ${cardBorderTone(card)} bg-parchment text-stone-900 px-1 py-0.5 flex flex-col justify-between shadow`}>
-      <CardWatermark card={card} />
-      <div className={`relative text-[11px] font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+    <div className={`aspect-[2/3] w-11 rounded-sm border-2 ${cardBorderTone(card)} bg-parchment text-stone-900 px-1 py-0.5 flex flex-col justify-between shadow`}>
+      <div className={`text-[11px] font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
         {rankLabel(card.rank)}
       </div>
-      <div className={`relative text-sm leading-none text-right ${red ? 'text-blood' : 'text-stone-900'}`}>
+      <div className={`text-sm leading-none text-right ${red ? 'text-blood' : 'text-stone-900'}`}>
         {SUIT_GLYPH[card.suit]}
       </div>
     </div>
