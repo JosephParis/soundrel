@@ -1,29 +1,121 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --color-blood: #b91c1c;
+  --color-blood-glow: #ef4444;
   --color-parchment: #f5e6c8;
   --color-dungeon: #0b0d12;
-  --color-stone: #1f2937;
   --color-rune: #fbbf24;
+  --color-rune-dim: #92400e;
+
+  --font-display: 'Cinzel', 'Cormorant Garamond', 'Georgia', serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Base resets MUST live in @layer base so Tailwind utility classes (which
+   live in @layer utilities) can override them. An unlayered `* { margin: 0 }`
+   wins over EVERY layered Tailwind class regardless of specificity, which
+   is what was breaking mx-auto centering. */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    min-height: 100vh;
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(251, 191, 36, 0.05), transparent 55%),
+      radial-gradient(ellipse at bottom, rgba(185, 28, 28, 0.04), transparent 55%),
+      #0b0d12;
+    background-attachment: fixed;
+    color: #e2e8f0;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+
+  h1, h2, h3, h4, h5, h6, p, ul, ol, dl, dd, figure, blockquote {
+    margin: 0;
+  }
+
+  ul, ol {
+    padding: 0;
+    list-style: none;
+  }
+
+  button {
+    font-family: inherit;
+  }
 }
 
-html, body, #root {
-  min-height: 100vh;
-  height: 100%;
+@layer components {
+  /* A reusable "carved panel" recipe — every info container should use this
+     so the page reads as one design rather than five. Tailwind utilities can
+     still override individual properties (e.g. p-3, border-amber-700). */
+  .panel {
+    background:
+      linear-gradient(to bottom, rgba(245, 230, 200, 0.025), transparent 30%),
+      rgba(15, 17, 22, 0.7);
+    border: 1px solid rgba(120, 113, 108, 0.25);
+    border-radius: 0.5rem;
+  }
+  .panel-warm {
+    border-color: rgba(180, 83, 9, 0.4);
+    background:
+      linear-gradient(to bottom, rgba(251, 191, 36, 0.04), transparent 40%),
+      rgba(15, 17, 22, 0.7);
+  }
 }
 
-body {
-  background: #0b0d12;
-  color: #e2e8f0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+
+  .rune-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: rgba(251, 191, 36, 0.45);
+  }
+  .rune-divider::before,
+  .rune-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(251, 191, 36, 0.25), transparent);
+  }
+
+  .rune-pulse {
+    animation: runePulse 3.2s ease-in-out infinite;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.25s ease-out;
+  }
+}
+
+@keyframes runePulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.35),
+      0 0 22px -4px rgba(239, 68, 68, 0.55),
+      inset 0 0 14px rgba(251, 191, 36, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.55),
+      0 0 38px -4px rgba(239, 68, 68, 0.75),
+      inset 0 0 22px rgba(251, 191, 36, 0.14);
+  }
 }
 
 @keyframes fadeIn {
@@ -31,10 +123,10 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.25s ease-out;
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); }
+::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.6);
+  border-radius: 4px;
 }
-
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #1e293b; }
-::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(251, 191, 36, 0.4); }
