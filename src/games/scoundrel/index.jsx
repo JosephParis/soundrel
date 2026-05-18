@@ -430,8 +430,8 @@ function TransmuteView({ game, onConfirm, onCancel }) {
 function suitName(suit) {
   if (suit === HEART) return 'potion'
   if (suit === DIAMOND) return 'weapon'
-  if (suit === CLUB) return 'beast'
-  return 'wraith'
+  if (suit === CLUB) return 'club monster'
+  return 'spade monster'
 }
 
 function CardPickerGrid({ cards, selected, onPick }) {
@@ -812,7 +812,7 @@ function WeaponBlock({ game, weapon, label }) {
         <div className="text-[11px] text-slate-500">
           {lastSlain
             ? `Bound to rank ${rankLabel(lastSlain.rank)} or lower.`
-            : 'Ready — will swing for any foe.'}
+            : 'Ready — swings for any monster.'}
         </div>
       </div>
       <div
@@ -988,7 +988,7 @@ function RulesContent() {
       <RuleSection title="The cards">
         <RuleRow term="♥ Potion"><span className="text-slate-500">Heals HP = rank.</span> Only the first potion per room heals; extras are wasted.</RuleRow>
         <RuleRow term="♦ Weapon"><span className="text-slate-500">Equips it.</span> Replaces your current weapon — the old one is gone.</RuleRow>
-        <RuleRow term="♣ ♠ Monster"><span className="text-slate-500">Fight it.</span> Click the card to swing your weapon (when usable); the "Bare hands" button below forces an unarmed fight.</RuleRow>
+        <RuleRow term="♣ ♠ Monster"><span className="text-slate-500">Fight it.</span> Click the card to swing your weapon (when usable); the "Bare hands" button below forces a bare-handed fight.</RuleRow>
       </RuleSection>
 
       <RuleSection title="How the room flows — three of four">
@@ -1008,7 +1008,7 @@ function RulesContent() {
         </p>
         <p className="text-slate-400 text-[12px] mt-2">
           Catch: you can't flee twice in a row. After a flee, you have to clear a fresh room
-          (down to one card) before the Flee button re-arms. Flee early, before a room mauls you — once it's wounded you, the damage is already paid.
+          (down to one card) before the Flee button re-arms. Flee early, before a room damages you — once it has, the damage is already paid.
         </p>
       </RuleSection>
 
@@ -1029,22 +1029,22 @@ function RulesContent() {
         <div className="mt-3 panel p-3 text-[12px] space-y-2">
           <div className="text-rune text-[10px] uppercase tracking-[0.2em]">Worked example</div>
           <div className="text-slate-300">
-            Take up a <span className="font-mono text-parchment">7♦</span>. Fresh blade — swings at anything.
+            Take up a <span className="font-mono text-parchment">7♦</span>. Fresh weapon — swings at any monster.
           </div>
           <div className="text-slate-300">
-            Fight a <span className="font-mono text-parchment">9♠</span>. You swing — take <span className="font-mono">9 − 7 = 2</span> damage. The blade binds: rank <span className="font-mono">9</span> or lower from now on.
+            Fight a <span className="font-mono text-parchment">9♠</span>. You swing — take <span className="font-mono">9 − 7 = 2</span> damage. The weapon binds: rank <span className="font-mono">9</span> or lower from now on.
           </div>
           <div className="text-slate-300">
             Next room: a <span className="font-mono text-parchment">10♣</span>. Card-click is locked. Your options: Bare hands (eat 10), or take up a new weapon, or flee.
           </div>
           <div className="text-slate-300">
-            You grab an <span className="font-mono text-parchment">8♦</span>. Binding resets — fresh blade again, swings at anything until its first kill.
+            You take up an <span className="font-mono text-parchment">8♦</span>. Binding resets — fresh weapon again, swings at any monster until its first kill.
           </div>
         </div>
 
         <p className="text-slate-400 text-[12px] mt-2">
           Sometimes "Bare hands" is the right call even when you could swing — eat a mid-rank
-          monster to keep the blade's edge clean for the king you can see waiting in the room.
+          monster to keep the weapon's binding clean for the king you can see waiting in the room.
         </p>
       </RuleSection>
 
@@ -1152,6 +1152,7 @@ function BoonsGlossary() {
   const byTag = {}
   for (const id of Object.keys(BOONS)) {
     const b = BOONS[id]
+    if (b.disabled) continue
     const tag = b.tag || 'misc'
     if (!byTag[tag]) byTag[tag] = []
     byTag[tag].push(b)

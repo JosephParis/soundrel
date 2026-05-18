@@ -1,4 +1,15 @@
-import { HEART, DIAMOND, CLUB, SPADE } from './constants'
+import { HEART, DIAMOND, CLUB, SPADE, SUIT_GLYPH, rankLabel } from './constants'
+
+function fmt(card) {
+  return `${rankLabel(card.rank)}${SUIT_GLYPH[card.suit]}`
+}
+
+// "A" → "A"; "A and B" → "A and B"; "A, B, and C" → "A, B and C" (no Oxford comma).
+function joinList(arr) {
+  if (arr.length === 0) return ''
+  if (arr.length === 1) return arr[0]
+  return arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1]
+}
 
 export const THEMES = {
   // The opening-descent theme. Assigned to descent 1 of every run by
@@ -6,14 +17,14 @@ export const THEMES = {
   the_quiet: {
     id: 'the_quiet',
     name: 'The Quiet',
-    description: "The deep dream is still asleep. The Saint's wards bleed warmth into your bones — max HP +10.",
+    description: 'Max HP +10 this descent.',
     maxHpBonus: 10,
   },
 
   the_crypt: {
     id: 'the_crypt',
     name: 'The Crypt',
-    description: 'Two more spade face cards stir below; one heart is lost.',
+    description: 'Adds 2 random spade face cards to the deck. Removes 1 random potion.',
     tier: 1,
     applyToDeck(deck, rng) {
       const spadeFaces = deck.filter(c => c.suit === SPADE && c.rank >= 11)
@@ -24,18 +35,26 @@ export const THEMES = {
       }
       const hearts = deck.filter(c => c.suit === HEART)
       let result = deck.slice()
+      let removed = null
       if (hearts.length > 0) {
-        const remove = hearts[Math.floor(rng() * hearts.length)]
-        result = result.filter(c => c.id !== remove.id)
+        removed = hearts[Math.floor(rng() * hearts.length)]
+        result = result.filter(c => c.id !== removed.id)
       }
-      return result.concat(additions)
+      const log = []
+      if (additions.length > 0) {
+        log.push(`The Crypt added ${joinList(additions.map(fmt))} to the deck.`)
+      }
+      if (removed) {
+        log.push(`The Crypt removed ${fmt(removed)} from the deck.`)
+      }
+      return { deck: result.concat(additions), log }
     },
   },
 
   the_armory: {
     id: 'the_armory',
     name: 'The Armory',
-    description: 'Three more diamonds glint in the dark; one club is missing.',
+    description: 'Adds 3 random weapons to the deck. Removes 1 random club monster.',
     tier: 1,
     applyToDeck(deck, rng) {
       const diamonds = deck.filter(c => c.suit === DIAMOND)
@@ -46,18 +65,26 @@ export const THEMES = {
       }
       const clubs = deck.filter(c => c.suit === CLUB)
       let result = deck.slice()
+      let removed = null
       if (clubs.length > 0) {
-        const remove = clubs[Math.floor(rng() * clubs.length)]
-        result = result.filter(c => c.id !== remove.id)
+        removed = clubs[Math.floor(rng() * clubs.length)]
+        result = result.filter(c => c.id !== removed.id)
       }
-      return result.concat(additions)
+      const log = []
+      if (additions.length > 0) {
+        log.push(`The Armory added ${joinList(additions.map(fmt))} to the deck.`)
+      }
+      if (removed) {
+        log.push(`The Armory removed ${fmt(removed)} from the deck.`)
+      }
+      return { deck: result.concat(additions), log }
     },
   },
 
   sharpened_fangs: {
     id: 'sharpened_fangs',
     name: 'Sharpened Fangs',
-    description: 'Every monster strikes with one rank more weight tonight.',
+    description: 'Every monster acts as 1 rank higher this descent.',
     tier: 1,
     monsterRankBonus: 1,
   },
@@ -65,7 +92,7 @@ export const THEMES = {
   rusty_edge: {
     id: 'rusty_edge',
     name: 'Rusty Edge',
-    description: 'Weapons taken up tonight come dulled — one rank lower (minimum 2).',
+    description: 'Weapons taken up this descent enter at 1 rank lower (minimum 2).',
     tier: 1,
     weaponRankModifier: -1,
   },

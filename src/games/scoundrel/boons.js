@@ -6,23 +6,23 @@ export const BOONS = {
     id: 'whetstone',
     name: 'Whetstone',
     description: 'Equipped weapons swing at +1 effective rank.',
-    example: 'Your 5♦ strikes as a 6. Stack with Glass Cannon for +5.',
+    example: 'Your 5♦ strikes as a 6. Stacks with Glass Cannon for +5 total.',
     tag: 'combat',
     weaponRankBonus: 1,
   },
   vanguard: {
     id: 'vanguard',
     name: 'Vanguard',
-    description: 'The first monster fought each room deals 2 less damage to you.',
-    example: 'A 10♠ first up takes 2 off — bare-hand it for 8 instead of 10.',
+    description: 'The first monster you fight each room deals 2 less damage.',
+    example: 'A 10♠ as the first monster of a room — bare-handed you take 8 instead of 10.',
     tag: 'combat',
     vanguardReduction: 2,
   },
   sworn_vendetta: {
     id: 'sworn_vendetta',
     name: 'Sworn Vendetta',
-    description: 'Take 2 less damage from spades.',
-    example: 'A 9♠ bare-handed hits for 7 instead of 9.',
+    description: 'Spade monsters deal 2 less damage.',
+    example: 'A 9♠ bare-handed deals 7 instead of 9.',
     tag: 'combat',
     bonusVsSuit: SPADE,
     bonusVsSuitAmount: 2,
@@ -30,8 +30,8 @@ export const BOONS = {
   hunter: {
     id: 'hunter',
     name: 'Hunter',
-    description: 'Take 2 less damage from clubs.',
-    example: 'A 9♣ bare-handed hits for 7 instead of 9.',
+    description: 'Club monsters deal 2 less damage.',
+    example: 'A 9♣ bare-handed deals 7 instead of 9.',
     tag: 'combat',
     bonusVsSuit: CLUB,
     bonusVsSuitAmount: 2,
@@ -39,18 +39,21 @@ export const BOONS = {
   riposte: {
     id: 'riposte',
     name: 'Riposte',
-    description: 'When a monster wounds you, the next monster you fight strikes for that much less.',
-    example: 'Eat 4 from a beast → next monster strikes for 4 less. Banked, then spent.',
+    description: 'When a monster damages you, the next monster you fight deals half that much less damage (rounded down).',
+    example: 'Take 4 from a monster → the next deals 2 less. Banked, then spent.',
     tag: 'combat',
     riposte: true,
   },
   quartermaster: {
     id: 'quartermaster',
     name: 'Quartermaster',
-    description: 'Carry a second weapon on your back. Whichever swings cleanest is drawn for each fight.',
-    example: 'Keep a 5♦ for cheap kills and an 8♦ for the kings — each has its own binding.',
+    description: 'Carry 2 weapons at once, each with its own binding. The higher-ranked usable one swings each fight.',
+    example: 'Keep a 5♦ for cheap kills and an 8♦ for the kings.',
     tag: 'combat',
     quartermaster: true,
+    // Temporarily removed from the offer pool while the swap-rule
+    // question (DESIGN.md §9) is open. Re-enable by deleting `disabled`.
+    disabled: true,
   },
 
   // ---- Survival --------------------------------------------------------
@@ -58,23 +61,23 @@ export const BOONS = {
     id: 'iron_will',
     name: 'Iron Will',
     description: 'Max HP +3.',
-    example: 'Base 20 → 23. One extra hit you can survive.',
+    example: '20 base HP → 23. One more hit you can survive.',
     tag: 'survival',
     maxHpBonus: 3,
   },
   second_wind: {
     id: 'second_wind',
     name: 'Second Wind',
-    description: 'Once per descent, falling to 3 HP or less heals you to 6.',
-    example: 'Triggers automatically the first time you drop low. A free potion at the worst moment.',
+    description: 'Once per descent, dropping to 3 HP or less heals you to 6.',
+    example: 'Triggers automatically the first time you drop low. A free heal at the worst moment.',
     tag: 'survival',
     secondWind: true,
   },
   soothsayer: {
     id: 'soothsayer',
     name: 'Soothsayer',
-    description: 'You always see the next card waiting beneath the deck.',
-    example: 'Know if the next refill is a potion you need, or a king you have to flee.',
+    description: 'See the top card of the deck at all times.',
+    example: 'Know if the next card is a potion you need or a king you must flee.',
     tag: 'survival',
     soothsayer: true,
   },
@@ -83,24 +86,24 @@ export const BOONS = {
   sip_of_lethe: {
     id: 'sip_of_lethe',
     name: 'Sip of Lethe',
-    description: 'Drink up to two potions per room.',
-    example: 'A room with an 8♥ and a 6♥? Both heal you — 14 HP back in one room.',
+    description: 'Drink up to 2 potions per room.',
+    example: 'A room with an 8♥ and a 6♥ — both heal you, 14 HP in one room.',
     tag: 'economy',
     potionsPerRoom: 2,
   },
   alchemist: {
     id: 'alchemist',
     name: 'Alchemist',
-    description: 'A potion wasted over your room\'s limit still heals half its rank.',
-    example: 'A second 8♥ in one room normally wastes — Alchemist drinks the dregs for 4 HP.',
+    description: 'A potion drunk past the per-room limit still heals half its rank.',
+    example: 'A second 8♥ in one room normally wastes — Alchemist gets you 4 HP from the dregs.',
     tag: 'economy',
     alchemist: true,
   },
   pickpocket: {
     id: 'pickpocket',
     name: 'Pickpocket',
-    description: 'When you flee, pocket one card — the best item, or the weakest beast — to carry into the next room.',
-    example: 'Flee past a brutal room and the strongest potion comes with you.',
+    description: 'When you flee, 1 card carries into the next room — the highest-rank weapon or potion if any, otherwise the lowest-rank monster.',
+    example: 'Flee a brutal room and the strongest potion carries into the next.',
     tag: 'economy',
     pickpocket: true,
   },
@@ -109,16 +112,16 @@ export const BOONS = {
   scoundrels_cloak: {
     id: 'scoundrels_cloak',
     name: "Scoundrel's Cloak",
-    description: 'Once per descent, fleeing doesn\'t lock you out of fleeing again.',
-    example: 'Chain two flees back-to-back to skip past two rooms of trouble.',
+    description: 'Once per descent, you can flee 2 rooms in a row.',
+    example: 'Chain two flees back-to-back to skip past two rooms.',
     tag: 'build',
     cloak: true,
   },
   glass_cannon: {
     id: 'glass_cannon',
     name: 'Glass Cannon',
-    description: 'Weapons swing at +4 effective rank. Max HP set to 10.',
-    example: 'Your 5♦ strikes as a 9. But 10 HP means one bad room can end you.',
+    description: 'Equipped weapons swing at +4 effective rank. Max HP set to 10.',
+    example: 'Your 5♦ strikes as a 9. But 10 HP means one bad room ends the descent.',
     tag: 'build',
     weaponRankBonus: 4,
     maxHpOverride: 10,
@@ -127,15 +130,15 @@ export const BOONS = {
     id: 'twin_souls',
     name: 'Twin Souls',
     description: 'Once per descent, a killing blow leaves you at 1 HP instead.',
-    example: 'An extra life. Don\'t lean on it twice — it doesn\'t reload.',
+    example: 'One extra life per descent. Resets between descents, not within one.',
     tag: 'build',
     twinSouls: true,
   },
   cartographer: {
     id: 'cartographer',
     name: 'Cartographer',
-    description: 'See the upcoming card order for the descent.',
-    example: 'Read the whole dungeon. Every flee, every refill becomes a calculation.',
+    description: 'See every remaining card in the deck, in order.',
+    example: 'Every flee, every refill becomes a calculation.',
     tag: 'build',
     cartographer: true,
   },
@@ -149,10 +152,10 @@ export function getBoon(id) {
 
 // Pick `count` Boons not already taken. Bias toward tags the player has the
 // least of so a run can't degenerate into "six Combat Boons in a row" (per
-// DESIGN.md §4).
+// DESIGN.md §4). Boons flagged `disabled: true` are skipped entirely.
 export function pickBoonOffers(currentBoons, count, rng) {
   const taken = new Set(currentBoons)
-  const available = ALL_BOON_IDS.filter(id => !taken.has(id))
+  const available = ALL_BOON_IDS.filter(id => !taken.has(id) && !BOONS[id]?.disabled)
   if (available.length <= count) return available
 
   const tagCounts = currentBoons.reduce((acc, id) => {

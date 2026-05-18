@@ -60,13 +60,23 @@ export function computeCurrentDeck(state) {
   return deck
 }
 
+// Themes that modify the deck return either a plain array (the new deck) or
+// an object `{ deck, log }` so they can emit per-card log lines. The result
+// is funneled into the descent's opening log via `descend`.
 function buildDescentDeck(state, themeId, rng) {
   let deck = computeCurrentDeck(state)
   const theme = getTheme(themeId)
+  let extraLog = []
   if (theme?.applyToDeck) {
-    deck = theme.applyToDeck(deck, rng)
+    const result = theme.applyToDeck(deck, rng)
+    if (Array.isArray(result)) {
+      deck = result
+    } else {
+      deck = result.deck
+      extraLog = result.log || []
+    }
   }
-  return shuffle(deck, rng)
+  return { deck: shuffle(deck, rng), log: extraLog }
 }
 
 // -- Boon / theme helpers ----------------------------------------------
@@ -226,7 +236,7 @@ export function descend(state) {
   if (!state.boonChosen) return state // must pick a Boon first
 
   const themeId = state.nextTheme
-  const deck = buildDescentDeck(state, themeId, state.rng)
+  const { deck, log: themeLog } = buildDescentDeck(state, themeId, state.rng)
   const room = deck.splice(0, 4)
   const maxHp = computeMaxHp(state, themeId)
 
@@ -262,7 +272,7 @@ export function descend(state) {
     secondWindUsed: false,
     cloakUsed: false,
     twinSoulsUsed: false,
-    log: [openingLine],
+    log: [openingLine, ...themeLog],
   }
 }
 
@@ -320,10 +330,14 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     : 'bare-handed'
   next = appendLog(next, `Fought ${rankLabel(monsterCard.rank)}${glyph} ${how} — took ${damage}.`)
 
-  // Riposte: bank this fight's actual damage for the next fight.
+  // Riposte: bank half this fight's actual damage (rounded down) for the
+  // next fight. Damage of 1 banks 0 — no Riposte effect from chip hits.
   if (hasBoon(next, 'riposte') && damage > 0) {
-    next.riposteCharge = damage
-    next = appendLog(next, `Riposte holds — next monster strikes for ${damage} less.`)
+    const charge = Math.floor(damage / 2)
+    if (charge > 0) {
+      next.riposteCharge = charge
+      next = appendLog(next, `Riposte holds — the next monster deals ${charge} less.`)
+    }
   }
 
   // Twin Souls: a killing blow leaves you at 1 HP instead, once per descent.
