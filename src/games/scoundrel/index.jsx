@@ -220,7 +220,7 @@ function SanctuaryView({ game, setGame }) {
 
       <LogPanel lines={game.log} />
 
-      {import.meta.env.DEV && <DevPanel game={game} setGame={setGame} />}
+      <DevPanel game={game} setGame={setGame} />
     </div>
   )
 }
