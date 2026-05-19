@@ -24,6 +24,7 @@ import {
   getTheme,
   BOONS,
   THEMES,
+  FORGE_SIGILS,
   SUIT_GLYPH,
   HEART, DIAMOND, CLUB, SPADE,
   isMonster, isWeapon, isPotion,
@@ -218,7 +219,162 @@ function SanctuaryView({ game, setGame }) {
       />
 
       <LogPanel lines={game.log} />
+
+      {import.meta.env.DEV && <DevPanel game={game} setGame={setGame} />}
     </div>
+  )
+}
+
+function DevPanel({ game, setGame }) {
+  const [open, setOpen] = useState(false)
+  const [sigils, setSigils] = useState(game.sigilsEarned)
+  const [themeId, setThemeId] = useState(game.nextTheme || 'the_quiet')
+  const tier2Ids = useMemo(
+    () => Object.values(THEMES).filter(t => t.tier === 2).map(t => t.id),
+    []
+  )
+  const [child1, setChild1] = useState(() => game.nextThemeChildren?.[0] || tier2Ids[0] || '')
+  const [child2, setChild2] = useState(() => game.nextThemeChildren?.[1] || tier2Ids[1] || '')
+  const [selectedBoons, setSelectedBoons] = useState(() => new Set(game.boons))
+
+  const themeObj = getTheme(themeId)
+  const isCompound = !!themeObj?.compound
+  const maxSigils = game.sigilTarget - 1
+
+  const toggleBoon = (id) => {
+    setSelectedBoons(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const apply = () => {
+    setGame(g => ({
+      ...g,
+      sigilsEarned: sigils,
+      nextTheme: themeId,
+      nextThemeChildren: isCompound
+        ? [child1, child2].filter(Boolean)
+        : null,
+      boons: Array.from(selectedBoons),
+      boonChosen: true,
+      boonOffers: [],
+      forgeOpen: FORGE_SIGILS.has(sigils),
+      forgeUsed: false,
+      forgeView: null,
+      mutedBoon: null,
+      log: [...g.log, `[dev] overrides applied — sigils ${sigils}, theme "${themeObj?.name || themeId}".`],
+    }))
+  }
+
+  if (!open) {
+    return (
+      <div className="text-center pt-4">
+        <button
+          onClick={() => setOpen(true)}
+          className="text-[10px] uppercase tracking-widest text-stone-600 hover:text-amber-300/80 transition"
+        >
+          ⚙ Dev
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <section className="panel p-4 border border-amber-900/40 space-y-3 text-[12px]">
+      <div className="flex justify-between items-baseline">
+        <div className="text-[10px] uppercase tracking-widest text-amber-200/70">Dev overrides</div>
+        <button
+          onClick={() => setOpen(false)}
+          className="text-[10px] uppercase tracking-wider text-slate-500 hover:text-parchment"
+        >
+          Close
+        </button>
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Sigils earned</div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={maxSigils}
+            value={sigils}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              setSigils(Math.max(0, Math.min(maxSigils, Number.isFinite(n) ? n : 0)))
+            }}
+            className="w-16 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment font-mono"
+          />
+          <span className="text-slate-500">/ {game.sigilTarget}</span>
+          {FORGE_SIGILS.has(sigils) && (
+            <span className="text-amber-300/70 text-[10px] uppercase tracking-wider">Forge opens</span>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Next theme</div>
+        <select
+          value={themeId}
+          onChange={(e) => setThemeId(e.target.value)}
+          className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
+        >
+          {Object.values(THEMES).map(t => {
+            const tier = t.tier ? `T${t.tier}` : 'intro'
+            return <option key={t.id} value={t.id}>{t.name} ({tier})</option>
+          })}
+        </select>
+      </div>
+
+      {isCompound && (
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: 'Child A', value: child1, set: setChild1 },
+            { label: 'Child B', value: child2, set: setChild2 },
+          ].map(({ label, value, set }) => (
+            <div key={label}>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{label} (T2)</div>
+              <select
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
+              >
+                {tier2Ids.map(id => (
+                  <option key={id} value={id}>{THEMES[id].name}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Boons</div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          {Object.values(BOONS).map(b => (
+            <label key={b.id} className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-parchment">
+              <input
+                type="checkbox"
+                checked={selectedBoons.has(b.id)}
+                onChange={() => toggleBoon(b.id)}
+                className="accent-amber-500"
+              />
+              <span>{b.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={apply}
+        className="w-full px-3 py-2 rounded-md bg-amber-900/40 hover:bg-amber-900/60 text-amber-100 text-[11px] uppercase tracking-widest border border-amber-700/50 transition"
+      >
+        Apply overrides
+      </button>
+    </section>
   )
 }
 
@@ -693,8 +849,8 @@ function DescentView({ game, setGame }) {
 
       <aside className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-4">
-          <ConditionsPanel game={game} theme={theme} />
           <WeaponPanel game={game} />
+          <ConditionsPanel game={game} theme={theme} />
         </div>
         <LogPanel lines={game.log} />
       </aside>
@@ -925,28 +1081,25 @@ function WeaponBlock({ game, weapon, label }) {
   const lastSlain = weapon.lastSlain
   return (
     <div className="flex items-center gap-3">
-      <div className="text-sm space-y-0.5 flex-1 min-w-0">
+      <div className="flex-1 min-w-0">
         {label && (
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{label}</div>
         )}
-        <div className="font-mono text-rune text-base">{rankLabel(weapon.rank)}♦</div>
-        <div className="text-[11px] text-slate-400">
-          Strikes as <span className="text-parchment font-mono">{strength.value}</span>{' '}
-          <Formula parts={strength.parts} />
-        </div>
-        <div className="text-[11px] text-slate-500">
-          {lastSlain
-            ? `Bound to rank ${rankLabel(lastSlain.rank)} or lower.`
-            : 'Ready — swings for any monster.'}
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">Strikes as</div>
+        <div className="font-mono font-bold text-parchment text-5xl leading-none">
+          {strength.value}
         </div>
       </div>
-      <div
-        className={`font-mono font-bold leading-none shrink-0 text-center text-4xl w-12 ${
-          lastSlain ? 'text-parchment' : 'text-stone-700'
-        }`}
-        aria-label={lastSlain ? `Bound to ${rankLabel(lastSlain.rank)}` : 'No binding'}
-      >
-        {lastSlain ? rankLabel(lastSlain.rank) : '—'}
+      <div className="shrink-0 text-center">
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 whitespace-nowrap">Bound to</div>
+        <div
+          className={`font-mono font-bold leading-none text-5xl ${
+            lastSlain ? 'text-parchment' : 'text-stone-700'
+          }`}
+          aria-label={lastSlain ? `Bound to ${rankLabel(lastSlain.rank)}` : 'No binding'}
+        >
+          {lastSlain ? rankLabel(lastSlain.rank) : '—'}
+        </div>
       </div>
     </div>
   )
