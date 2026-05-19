@@ -101,6 +101,23 @@
   .animate-fade-in {
     animation: fadeIn 0.25s ease-out;
   }
+
+  .animate-card-reveal {
+    animation: cardReveal 0.55s ease-out;
+    transform-origin: center;
+  }
+
+  .animate-theme-intro-title {
+    animation: themeIntroTitle 0.9s ease-out both;
+  }
+
+  .animate-theme-intro-body {
+    animation: themeIntroBody 0.9s ease-out 0.25s both;
+  }
+
+  .animate-theme-intro-children {
+    animation: themeIntroBody 0.9s ease-out 0.5s both;
+  }
 }
 
 @keyframes runePulse {
@@ -121,6 +138,23 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cardReveal {
+  0%   { transform: rotateY(90deg) scale(0.96); opacity: 0.2; }
+  55%  { transform: rotateY(0deg) scale(1.04);  opacity: 1; }
+  100% { transform: rotateY(0deg) scale(1);     opacity: 1; }
+}
+
+@keyframes themeIntroTitle {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(6px); }
+  60%  { opacity: 1; transform: translateY(0) scale(1.02);    filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1);       filter: blur(0); }
+}
+
+@keyframes themeIntroBody {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

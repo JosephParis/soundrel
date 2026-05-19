@@ -155,6 +155,14 @@ function SanctuaryView({ game, setGame }) {
   const isOpeningVisit = game.sigilsEarned === 0
   const needsBoon = !isOpeningVisit && !game.boonChosen && game.boonOffers.length > 0
   const forgeAvailable = game.forgeOpen && !game.forgeUsed && !game.forgeView
+  const [creditsOpen, setCreditsOpen] = useState(false)
+
+  useEffect(() => {
+    if (!creditsOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setCreditsOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [creditsOpen])
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -220,7 +228,58 @@ function SanctuaryView({ game, setGame }) {
 
       <LogPanel lines={game.log} />
 
+      <div className="text-center pt-2">
+        <button
+          onClick={() => setCreditsOpen(true)}
+          className="text-[10px] uppercase tracking-widest text-stone-600 hover:text-rune transition"
+        >
+          ✦ Credits
+        </button>
+      </div>
+
+      <CreditsModal open={creditsOpen} onClose={() => setCreditsOpen(false)} />
+
       <DevPanel game={game} setGame={setGame} />
+    </div>
+  )
+}
+
+function CreditsModal({ open, onClose }) {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-w-md w-full p-6 sm:p-8 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close credits"
+        >
+          ×
+        </button>
+        <h2 className="font-display text-rune text-2xl mb-1">Credits</h2>
+        <p className="text-[12px] text-slate-500 mb-5">
+          Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+        </p>
+        <section>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500 mb-3">
+            Design & playtesting
+          </div>
+          <ul className="space-y-1.5 text-[15px] text-parchment font-display">
+            <li>Alexander Beck</li>
+            <li>Bronislaw Andrus</li>
+            <li>Joshua Rolfe</li>
+          </ul>
+          <p className="mt-5 text-[12px] text-slate-400 italic leading-snug">
+            Thanks for the runs, feedback, and ideas that shaped this wonderful game.
+          </p>
+        </section>
+      </div>
     </div>
   )
 }
@@ -789,9 +848,50 @@ function DescendAction({ onDescend, disabled, reason }) {
 // ============================================================
 
 function DescentView({ game, setGame }) {
-  const onCard = useCallback((i) => setGame(g => playCard(g, i)), [setGame])
-  const onCardBare = useCallback((i) => setGame(g => playCardBare(g, i)), [setGame])
-  const onFlee = useCallback(() => setGame(g => fleeRoom(g)), [setGame])
+  // When the player commits to a face-down card (Oath), flip it visibly first,
+  // then resolve. revealing holds the room index of the card mid-reveal.
+  const [revealing, setRevealing] = useState(null)
+  // Theme intro: shown once when the descent mounts. Auto-dismisses, but the
+  // player can tap to skip ahead.
+  const [introOpen, setIntroOpen] = useState(true)
+  useEffect(() => {
+    if (!introOpen) return
+    const t = setTimeout(() => setIntroOpen(false), 4200)
+    return () => clearTimeout(t)
+  }, [introOpen])
+  useEffect(() => {
+    if (!introOpen) return
+    const onKey = (e) => { if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') setIntroOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [introOpen])
+
+  const onCard = useCallback((i) => {
+    if (revealing != null) return
+    const card = game.room[i]
+    if (card?.faceDown) {
+      setRevealing(i)
+      return
+    }
+    setGame(g => playCard(g, i))
+  }, [game.room, revealing, setGame])
+  const onCardBare = useCallback((i) => {
+    if (revealing != null) return
+    setGame(g => playCardBare(g, i))
+  }, [revealing, setGame])
+  const onFlee = useCallback(() => {
+    if (revealing != null) return
+    setGame(g => fleeRoom(g))
+  }, [revealing, setGame])
+
+  useEffect(() => {
+    if (revealing == null) return
+    const t = setTimeout(() => {
+      setGame(g => playCard(g, revealing))
+      setRevealing(null)
+    }, 1400)
+    return () => clearTimeout(t)
+  }, [revealing, setGame])
 
   const theme = getTheme(game.theme)
 
@@ -802,6 +902,13 @@ function DescentView({ game, setGame }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {introOpen && (
+        <ThemeIntroOverlay
+          theme={theme}
+          themeChildren={game.themeChildren}
+          onDismiss={() => setIntroOpen(false)}
+        />
+      )}
       <DescentHeader game={game} theme={theme} />
 
       <section>
@@ -816,15 +923,21 @@ function DescentView({ game, setGame }) {
             let weaponDamage = null
             let bareDamage = null
             if (c && isMonster(c)) {
-              const preview = previewMonsterDamage(game, c)
+              // During the Oath reveal animation, peek the damage of the
+              // card that's flipping so the player can see what they're in for.
+              const previewCard = (revealing === i && c.faceDown) ? { ...c, faceDown: false } : c
+              const preview = previewMonsterDamage(game, previewCard)
               weaponDamage = preview.weapon
               bareDamage = preview.bare
             }
-            const showBare = weaponDamage !== null && !themeIronBones
+            // The player has already committed once the reveal starts —
+            // suppress the bare-hands alternate to avoid implying a choice.
+            const showBare = weaponDamage !== null && !themeIronBones && revealing !== i
             return (
               <CardSlot
                 key={i}
                 card={c}
+                reveal={revealing === i}
                 onClick={() => c && onCard(i)}
                 onBareHands={showBare ? () => onCardBare(i) : null}
                 weaponDamage={weaponDamage}
@@ -854,6 +967,45 @@ function DescentView({ game, setGame }) {
         </div>
         <LogPanel lines={game.log} />
       </aside>
+    </div>
+  )
+}
+
+function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
+  const childThemes = (themeChildren || []).map(id => getTheme(id)).filter(Boolean)
+  if (!theme) return null
+  return (
+    <div
+      onClick={onDismiss}
+      role="button"
+      tabIndex={-1}
+      aria-label="Dismiss theme intro"
+      className="fixed inset-0 z-40 flex items-center justify-center px-6 bg-dungeon/90 backdrop-blur-md cursor-pointer animate-fade-in"
+    >
+      <div className="max-w-lg text-center">
+        <div className="animate-theme-intro-title">
+          <div className="text-[11px] uppercase tracking-[0.4em] text-slate-500 mb-3">Tonight's air</div>
+          <h2 className="font-display text-rune text-4xl sm:text-5xl rune-pulse inline-block px-6 py-3 rounded-lg">
+            {theme.name}
+          </h2>
+        </div>
+        <p className="mt-6 text-[15px] sm:text-base text-slate-300 leading-relaxed animate-theme-intro-body">
+          {theme.description}
+        </p>
+        {childThemes.length > 0 && (
+          <ul className="mt-5 pt-4 border-t border-stone-800/80 space-y-2 text-left animate-theme-intro-children">
+            {childThemes.map(c => (
+              <li key={c.id} className="text-[13px] leading-snug">
+                <span className="text-rune font-semibold">{c.name}</span>
+                <span className="text-slate-400"> — {c.description}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-8 text-[11px] uppercase tracking-[0.3em] text-slate-500 animate-theme-intro-children">
+          Tap anywhere to begin
+        </div>
+      </div>
     </div>
   )
 }
@@ -995,13 +1147,13 @@ function ConditionsPanel({ game, theme }) {
   )
 }
 
-function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
+function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal }) {
   if (!card) {
     return (
       <div className="aspect-[2/3] w-full max-w-[200px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
     )
   }
-  if (card.faceDown) {
+  if (card.faceDown && !reveal) {
     return <FaceDownCardSlot onClick={onClick} />
   }
   const red = card.suit === HEART || card.suit === DIAMOND
@@ -1014,8 +1166,9 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage }) {
   return (
     <div className="w-full max-w-[200px] flex flex-col">
       <button
-        onClick={onClick}
-        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-4 flex flex-col justify-between text-left transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] shadow-md`}
+        onClick={reveal ? undefined : onClick}
+        disabled={reveal}
+        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-4 flex flex-col justify-between text-left transition-all shadow-md ${reveal ? 'animate-card-reveal cursor-default ring-2 ring-rune/60' : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)]'}`}
       >
         <div className={`text-4xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
