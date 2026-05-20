@@ -62,7 +62,7 @@ export const THEMES = {
   the_armory: {
     id: 'the_armory',
     name: 'The Armory',
-    description: 'Adds 3 low-rank weapons (rank 2–5) to the deck. Plenty of blades, none of them king-killers.',
+    description: 'Adds 3 low-rank weapons (rank 2–5) to the deck.',
     tier: 1,
     applyToDeck(deck, rng) {
       const additions = sampleSuit(deck, DIAMOND, 3, rng, 'armory', c => c.rank <= 5)
@@ -94,6 +94,22 @@ export const THEMES = {
       if (additions.length > 0) {
         log.push(`The Apothecary added ${joinList(additions.map(fmt))} to the deck.`)
       }
+      return { deck: deck.concat(additions), log }
+    },
+  },
+
+  locust_swarm: {
+    id: 'locust_swarm',
+    name: 'Locust Swarm',
+    description: 'Adds 4 rank-2 monsters to the deck.',
+    tier: 1,
+    applyToDeck(deck, rng) {
+      const additions = []
+      for (let i = 0; i < 4; i++) {
+        const suit = rng() < 0.5 ? CLUB : SPADE
+        additions.push({ suit, rank: 2, id: `${suit}2_swarm${i}`, themed: true })
+      }
+      const log = [`Locust Swarm released ${joinList(additions.map(fmt))} into the deck.`]
       return { deck: deck.concat(additions), log }
     },
   },
@@ -151,7 +167,7 @@ export const THEMES = {
   iron_bones: {
     id: 'iron_bones',
     name: 'Iron Bones',
-    description: 'You cannot fight bare-handed while a usable weapon is equipped. The iron remembers every kill.',
+    description: 'You cannot fight bare-handed while a usable weapon is equipped.',
     tier: 2,
     ironBones: true,
   },
@@ -178,6 +194,46 @@ export const THEMES = {
     description: 'Lose 1 HP each time a room is entered.',
     tier: 2,
     tithe: 1,
+  },
+
+  the_bog: {
+    id: 'the_bog',
+    name: 'The Bog',
+    description: 'Removes 2 random weapons from the deck.',
+    tier: 2,
+    applyToDeck(deck, rng) {
+      const weapons = deck.filter(c => c.suit === DIAMOND)
+      let result = deck.slice()
+      const removed = []
+      for (let i = 0; i < 2; i++) {
+        const pool = weapons.filter(w => !removed.find(r => r.id === w.id))
+        if (pool.length === 0) break
+        const pick = pool[Math.floor(rng() * pool.length)]
+        removed.push(pick)
+        result = result.filter(c => c.id !== pick.id)
+      }
+      const log = []
+      if (removed.length > 0) {
+        log.push(`The Bog swallowed ${joinList(removed.map(fmt))}.`)
+      }
+      return { deck: result, log }
+    },
+  },
+
+  the_reliquary: {
+    id: 'the_reliquary',
+    name: 'The Reliquary',
+    description: 'Adds 4 aces to the deck.',
+    tier: 2,
+    applyToDeck(deck, rng) {
+      const additions = []
+      for (let i = 0; i < 4; i++) {
+        const suit = rng() < 0.5 ? SPADE : CLUB
+        additions.push({ suit, rank: 14, id: `${suit}14_relic${i}`, themed: true })
+      }
+      const log = [`The Reliquary unsealed ${joinList(additions.map(fmt))}.`]
+      return { deck: deck.concat(additions), log }
+    },
   },
 
   // ---- Tier 3 ----------------------------------------------------------

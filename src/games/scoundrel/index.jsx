@@ -5,6 +5,7 @@ import {
   playCard,
   playCardBare,
   fleeRoom,
+  retireRun,
   pickBoon,
   openForgeAction,
   closeForgeView,
@@ -98,12 +99,46 @@ function suitIconTone(card) {
 
 
 // ============================================================
+// Save / load
+// ============================================================
+// Bump SAVE_VERSION whenever the shape of game state in logic.js changes
+// in a way that would break older saves — old data is discarded silently.
+const SAVE_KEY = 'scoundrel:save'
+const SAVE_VERSION = 1
+
+function loadSavedGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || parsed.version !== SAVE_VERSION || !parsed.state) return null
+    return { ...parsed.state, rng: Math.random }
+  } catch {
+    return null
+  }
+}
+
+function saveGame(state) {
+  try {
+    const { rng: _rng, ...serializable } = state
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, state: serializable }))
+  } catch {
+    // Quota exceeded or storage disabled — silently skip.
+  }
+}
+
+// ============================================================
 // Root
 // ============================================================
 
 export default function Scoundrel() {
-  const [game, setGame] = useState(() => createRun())
+  const [game, setGame] = useState(() => loadSavedGame() || createRun())
   const [rulesOpen, setRulesOpen] = useState(false)
+  const [retireOpen, setRetireOpen] = useState(false)
+
+  useEffect(() => {
+    saveGame(game)
+  }, [game])
 
   useEffect(() => {
     if (!rulesOpen) return
@@ -112,10 +147,33 @@ export default function Scoundrel() {
     return () => window.removeEventListener('keydown', onKey)
   }, [rulesOpen])
 
+  useEffect(() => {
+    if (!retireOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setRetireOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [retireOpen])
+
+  const confirmRetire = () => {
+    setGame(g => retireRun(g))
+    setRetireOpen(false)
+  }
+
   return (
     <div className="min-h-screen text-parchment flex flex-col items-center">
-      <TopBar game={game} onOpenRules={() => setRulesOpen(true)} />
+      <TopBar
+        game={game}
+        onOpenRules={() => setRulesOpen(true)}
+        onRetire={() => setRetireOpen(true)}
+      />
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <RetireModal
+        open={retireOpen}
+        sigilsEarned={game.sigilsEarned}
+        sigilTarget={game.sigilTarget}
+        onConfirm={confirmRetire}
+        onCancel={() => setRetireOpen(false)}
+      />
       <main className="flex-1 w-full max-w-4xl px-4 sm:px-6 pt-20 sm:pt-24 pb-16">
         {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} />}
         {game.phase === 'descent' && <DescentView game={game} setGame={setGame} />}
@@ -131,7 +189,8 @@ export default function Scoundrel() {
 // Top bar — persistent across phases
 // ============================================================
 
-function TopBar({ game, onOpenRules }) {
+function TopBar({ game, onOpenRules, onRetire }) {
+  const runActive = game.phase === 'sanctuary' || game.phase === 'descent'
   return (
     <header className="fixed top-0 left-0 right-0 z-30 border-b border-stone-800/80 bg-dungeon/85 backdrop-blur-md flex justify-center">
       <div className="w-full max-w-4xl px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
@@ -142,14 +201,65 @@ function TopBar({ game, onOpenRules }) {
           <span className="hidden sm:block text-stone-700">|</span>
           <SigilTracker count={game.sigilsEarned} target={game.sigilTarget} />
         </div>
-        <button
-          onClick={onOpenRules}
-          className="shrink-0 px-3 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-xs sm:text-sm font-medium transition"
-        >
-          How to play
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {runActive && (
+            <button
+              onClick={onRetire}
+              className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-blood/60 text-slate-400 hover:text-blood text-xs sm:text-sm font-medium transition"
+            >
+              Retire
+            </button>
+          )}
+          <button
+            onClick={onOpenRules}
+            className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-xs sm:text-sm font-medium transition"
+          >
+            How to play
+          </button>
+        </div>
       </div>
     </header>
+  )
+}
+
+function RetireModal({ open, sigilsEarned, sigilTarget, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onCancel}
+    >
+      <div
+        className="panel max-w-md w-full p-6 sm:p-8 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="font-display text-blood text-2xl mb-1">Retire run?</h2>
+        <p className="text-[12px] text-slate-500 mb-4">
+          Press <span className="font-mono text-slate-300">Esc</span> or click outside to cancel.
+        </p>
+        <p className="text-sm text-slate-300 leading-snug mb-2">
+          You will end this run with {sigilsEarned} of {sigilTarget} sigils set. All
+          boons, weapons, and progress will be lost.
+        </p>
+        <p className="text-[12px] text-slate-500 italic leading-snug mb-6">
+          The next who wakes here will walk into a different dungeon.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-sm font-medium transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-md bg-gradient-to-b from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-parchment text-sm font-medium border border-red-800/80"
+          >
+            Retire
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1374,19 +1484,28 @@ function ForesightPanel({ game }) {
 
 function OutcomeView({ game, setGame }) {
   const won = game.phase === 'victory'
+  const retired = !won && game.retired
+  const headline = won
+    ? 'The high gate opens.'
+    : retired
+      ? 'You walk back into the light.'
+      : 'You fall in the dark.'
+  const subtext = won
+    ? 'Seven sigils set. The eagles come at dawn.'
+    : retired
+      ? 'You leave the hall behind. The runes will be cold when the next scoundrel wakes.'
+      : 'The threshold fades. The next who wakes here will walk into the same dungeon you did.'
   return (
     <div className="text-center space-y-6 pt-6 animate-fade-in">
       <div className="space-y-3">
         <div className={`font-display text-4xl sm:text-5xl ${won ? 'text-rune' : 'text-blood'}`}>
-          {won ? 'The high gate opens.' : 'You fall in the dark.'}
+          {headline}
         </div>
         <div className="rune-divider mx-auto max-w-xs text-[10px]">
           <span>✦</span>
         </div>
         <p className="text-sm text-slate-400 max-w-lg mx-auto">
-          {won
-            ? 'Seven sigils set. The eagles come at dawn.'
-            : 'The threshold fades. The next who wakes here will walk into the same dungeon you did.'}
+          {subtext}
         </p>
         <div className="text-[11px] text-slate-500 uppercase tracking-widest">
           {game.sigilsEarned} of {game.sigilTarget} sigils set

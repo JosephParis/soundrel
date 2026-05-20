@@ -174,9 +174,13 @@ function effectiveMonsterRank(state, card) {
   return card.rank + bonus
 }
 
-function effectiveWeaponRank(weapon, boons) {
+function effectiveWeaponRank(state, weapon) {
   if (!weapon) return 0
-  return Math.max(0, weapon.rank + sumBoonField(boons, 'weaponRankBonus'))
+  const boons = activeBoons(state)
+  let bonus = sumBoonField(boons, 'weaponRankBonus')
+  if (hasBoon(state, 'wounded_lion') && state.hp < 10) bonus += 2
+  if (hasBoon(state, 'berserker')) bonus += (state.monstersFoughtThisRoom || 0)
+  return Math.max(0, weapon.rank + bonus)
 }
 
 function bonusVsSuitFor(state, card) {
@@ -213,8 +217,8 @@ function pickBestWeaponFor(state, monsterCard) {
   }
   if (candidates.length === 0) return null
   return candidates.reduce((best, cur) => {
-    const a = effectiveWeaponRank(best.weapon, activeBoons(state))
-    const b = effectiveWeaponRank(cur.weapon, activeBoons(state))
+    const a = effectiveWeaponRank(state, best.weapon)
+    const b = effectiveWeaponRank(state, cur.weapon)
     return b > a ? cur : best
   })
 }
@@ -235,7 +239,17 @@ function appendLog(state, line) {
 // Used by combat, Tithe, and Apothecary's sour second potion.
 // Returns { state, dead }. If dead, state is already in gameover phase.
 function applyHpLoss(state, amount) {
-  let next = { ...state, hp: state.hp - amount }
+  let next = { ...state }
+  // Numb soaks the first chunk of incoming damage each room (any source).
+  if (hasBoon(state, 'numb') && (state.numbRemaining || 0) > 0 && amount > 0) {
+    const absorbed = Math.min(state.numbRemaining, amount)
+    amount = amount - absorbed
+    next = appendLog(
+      { ...next, numbRemaining: state.numbRemaining - absorbed },
+      `Numb absorbs ${absorbed} — the hurt slides off.`
+    )
+  }
+  next = { ...next, hp: next.hp - amount }
 
   if (next.hp <= 0 && hasBoon(next, 'twin_souls') && !next.twinSoulsUsed) {
     next = appendLog({ ...next, hp: 1, twinSoulsUsed: true },
@@ -260,6 +274,10 @@ function applyRoomEntryEffects(state, room, firstNewIdx) {
   const themes = activeThemes(state)
   const roomsEntered = (state.roomsEntered || 0) + 1
   let next = { ...state, roomsEntered }
+  // Refresh Numb's per-room shield before any room-entry damage (Tithe).
+  if (hasBoon(next, 'numb')) {
+    next = { ...next, numbRemaining: 2 }
+  }
   let nextRoom = room.slice()
 
   // Oath: mark the first newly-drawn card face-down.
@@ -345,6 +363,8 @@ export function createRun(rng = Math.random) {
     secondWindUsed: false,
     cloakUsed: false,
     twinSoulsUsed: false,
+    cowardsRewardCharge: 0,
+    numbRemaining: 0,
 
     log: ['You wake in the great hall. The rune-chains hum.'],
   }
@@ -418,6 +438,8 @@ export function descend(state) {
     secondWindUsed: false,
     cloakUsed: false,
     twinSoulsUsed: false,
+    cowardsRewardCharge: 0,
+    numbRemaining: 0,
     log: [baseLine, ...themeLog],
   }
 
@@ -442,14 +464,19 @@ function getMonsterDamage(state, monsterCard, weaponUsed) {
 
   let dmg
   if (weaponUsed) {
-    const weapRank = effectiveWeaponRank(weaponUsed, activeBoons(state))
+    const weapRank = effectiveWeaponRank(state, weaponUsed)
     dmg = Math.max(0, effRank - weapRank)
   } else {
     dmg = effRank
+    const brawler = maxBoonField(activeBoons(state), 'brawlerReduction', 0)
+    if (brawler > 0) dmg = Math.max(0, dmg - brawler)
   }
   if (state.monstersFoughtThisRoom === 0) {
     const reduction = maxBoonField(activeBoons(state), 'vanguardReduction', 0)
     dmg = Math.max(0, dmg - reduction)
+    if (weaponUsed && hasBoon(state, 'cowards_reward') && (state.cowardsRewardCharge || 0) > 0) {
+      dmg = Math.max(0, dmg - state.cowardsRewardCharge)
+    }
   }
   const suitBonus = bonusVsSuitFor(state, monsterCard)
   if (suitBonus) dmg = Math.max(0, dmg - suitBonus.amount)
@@ -461,6 +488,8 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
   const chosen = useWeapon ? pickBestWeaponFor(state, monsterCard) : null
   const weaponUsed = chosen?.weapon || null
   const damage = getMonsterDamage(state, monsterCard, weaponUsed)
+  const wasFirstFight = state.monstersFoughtThisRoom === 0
+  const consumedCowardsCharge = wasFirstFight ? (state.cowardsRewardCharge || 0) : 0
   const room = state.room.slice()
   room[index] = null
 
@@ -473,10 +502,15 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     monstersFoughtThisRoom: state.monstersFoughtThisRoom + 1,
     lastMonsterSuit: monsterCard.suit,
     riposteCharge: 0,
+    // Coward's Reward charge is spent on the first fight of a room, weapon
+    // or no — you only get one "opening" per room.
+    cowardsRewardCharge: wasFirstFight ? 0 : (state.cowardsRewardCharge || 0),
   }
 
   // Weapon update: under Cracked Blade, slaying above the weapon's own
   // rank shatters it; otherwise lastSlain advances normally.
+  // Crushing Blow: if the kill cost you no HP — weapon, Hunter, Vanguard,
+  // Riposte, whatever brought it to 0 — the binding is untouched.
   let weaponShattered = false
   if (chosen) {
     const shatters = themeFlagAny(themes, 'crackedBlade') && monsterCard.rank > weaponUsed.rank
@@ -485,10 +519,24 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
       if (chosen.slot === 'primary') next.weapon = null
       else next.spareWeapon = null
     } else {
-      const updated = { ...weaponUsed, lastSlain: { rank: monsterCard.rank } }
-      if (chosen.slot === 'primary') next.weapon = updated
-      else next.spareWeapon = updated
+      const crushed = hasBoon(state, 'crushing_blow') && damage === 0
+      if (!crushed) {
+        const updated = { ...weaponUsed, lastSlain: { rank: monsterCard.rank } }
+        if (chosen.slot === 'primary') next.weapon = updated
+        else next.spareWeapon = updated
+      }
     }
+  } else if (hasBoon(state, 'executioner')) {
+    // Bare-handed kills raise the equipped weapon's ceiling — even slay
+    // a K with your fists to free the blade for everything below.
+    const lift = (w) => {
+      if (!w) return w
+      const prior = w.lastSlain?.rank ?? 0
+      if (monsterCard.rank <= prior) return w
+      return { ...w, lastSlain: { rank: monsterCard.rank } }
+    }
+    next.weapon = lift(next.weapon)
+    next.spareWeapon = lift(next.spareWeapon)
   }
 
   // Carrion: slain monsters return once at rank 2 of their suit. Skip if
@@ -512,6 +560,10 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     ? `with the ${rankLabel(weaponUsed.rank)}♦`
     : 'bare-handed'
   next = appendLog(next, `Fought ${rankLabel(monsterCard.rank)}${glyph} ${how} — took ${damage}.`)
+
+  if (consumedCowardsCharge > 0 && weaponUsed) {
+    next = appendLog(next, `Coward's Reward — the opening swing landed +${consumedCowardsCharge}.`)
+  }
 
   if (weaponShattered) {
     next = appendLog(next, 'The blade shatters under the strain — Cracked Blade claims it.')
@@ -544,6 +596,16 @@ function playPotion(state, index, card) {
   const bitterBrew = themeFlagAny(themes, 'potionHealHalf')
   const playedNow = state.potionsUsedThisRoom
 
+  // Stoic: hearts pass straight to the discard, no heal, no apothecary bite,
+  // no alchemist dregs. The +10 max HP is the entire compensation.
+  if (hasBoon(state, 'stoic')) {
+    const next = appendLog(
+      { ...state, room, discard: state.discard.concat(card) },
+      `Set aside ${fmt(card)} — Stoic. No draught passes your lips.`
+    )
+    return checkRefillAndComplete(next)
+  }
+
   let next = {
     ...state,
     room,
@@ -567,13 +629,21 @@ function playPotion(state, index, card) {
     next.hp = next.hp + healed
     const note = bitterBrew ? 'bitter, ' : ''
     next = appendLog(next, `Drank ${fmt(card)} — ${note}restored ${healed} HP.`)
-  } else if (hasBoon(next, 'alchemist')) {
-    const half = Math.ceil(card.rank / 2)
-    const healed = Math.min(next.maxHp, next.hp + half) - next.hp
-    next.hp = next.hp + healed
-    next = appendLog(next, `Potion ${fmt(card)} over your thirst — Alchemist drew ${healed} HP from its dregs.`)
   } else {
-    next = appendLog(next, `Potion ${fmt(card)} wasted — no thirst left.`)
+    // Overflow path: Alchemist and Field Surgeon stack — each adds its bit.
+    const alchAmt = hasBoon(next, 'alchemist') ? Math.ceil(card.rank / 2) : 0
+    const surgAmt = hasBoon(next, 'field_surgeon') ? 1 : 0
+    const totalHeal = alchAmt + surgAmt
+    if (totalHeal > 0) {
+      const healed = Math.min(next.maxHp, next.hp + totalHeal) - next.hp
+      next.hp = next.hp + healed
+      const reasons = []
+      if (alchAmt) reasons.push('Alchemist')
+      if (surgAmt) reasons.push('Field Surgeon')
+      next = appendLog(next, `Overflow ${fmt(card)} — ${reasons.join(' and ')} drew ${healed} HP from the dregs.`)
+    } else {
+      next = appendLog(next, `Potion ${fmt(card)} wasted — no thirst left.`)
+    }
   }
 
   return checkRefillAndComplete(next)
@@ -705,6 +775,14 @@ function endDescentDeath(state) {
   )
 }
 
+export function retireRun(state) {
+  if (state.phase !== 'sanctuary' && state.phase !== 'descent') return state
+  return appendLog(
+    { ...state, phase: 'gameover', retired: true },
+    'You lay down your blade and walk back into the light.'
+  )
+}
+
 function endDescentVictory(state) {
   const newSigils = state.sigilsEarned + 1
   const carriedWeapon = state.weapon ? { rank: state.weapon.rank, originalRank: state.weapon.originalRank } : null
@@ -761,6 +839,8 @@ function endDescentVictory(state) {
       secondWindUsed: false,
       cloakUsed: false,
       twinSoulsUsed: false,
+      cowardsRewardCharge: 0,
+      numbRemaining: 0,
     },
     `You return to the hall. Sigil ${newSigils} of ${state.sigilTarget} is set.`
   )
@@ -790,6 +870,10 @@ export function fleeRoom(state) {
 
   const usingCloak = hasBoon(state, 'scoundrels_cloak') && !state.cloakUsed
   const targetSize = getRoomSize(themes)
+  // Coward's Reward — each flee banks +1 on your next opening swing (cap 3).
+  const cowardsCharge = hasBoon(state, 'cowards_reward')
+    ? Math.min(3, (state.cowardsRewardCharge || 0) + 1)
+    : (state.cowardsRewardCharge || 0)
 
   if (hasBoon(state, 'pickpocket')) {
     const filled = state.room.filter(Boolean)
@@ -820,9 +904,13 @@ export function fleeRoom(state) {
         cloakUsed: usingCloak ? true : state.cloakUsed,
         potionsUsedThisRoom: 0,
         monstersFoughtThisRoom: 0,
+        cowardsRewardCharge: cowardsCharge,
       },
       usingCloak ? `${note} (Scoundrel's Cloak — you can flee again.)` : note
     )
+    if (hasBoon(next, 'cowards_reward')) {
+      next = appendLog(next, `Coward's Reward — opening swing banked at +${cowardsCharge}.`)
+    }
 
     const entry = applyRoomEntryEffects(next, next.room, firstNewIdx)
     if (entry.dead) return entry.state
@@ -842,11 +930,15 @@ export function fleeRoom(state) {
       cloakUsed: usingCloak ? true : state.cloakUsed,
       potionsUsedThisRoom: 0,
       monstersFoughtThisRoom: 0,
+      cowardsRewardCharge: cowardsCharge,
     },
     usingCloak
       ? 'You retreat. The room scatters back into the dark. (Scoundrel\'s Cloak — you can flee again.)'
       : 'You retreat. The room scatters back into the dark.'
   )
+  if (hasBoon(next, 'cowards_reward')) {
+    next = appendLog(next, `Coward's Reward — opening swing banked at +${cowardsCharge}.`)
+  }
 
   const entry = applyRoomEntryEffects(next, next.room, 0)
   if (entry.dead) return entry.state
@@ -1054,6 +1146,12 @@ export function describeWeaponStrength(state, weapon = state.weapon) {
     if (bonus > 0) parts.push({ label: BOONS[id].name, value: bonus, op: '+' })
     else if (bonus < 0) parts.push({ label: BOONS[id].name, value: -bonus, op: '-' })
   }
+  if (hasBoon(state, 'wounded_lion') && state.hp < 10) {
+    parts.push({ label: 'Wounded Lion', value: 2, op: '+' })
+  }
+  if (hasBoon(state, 'berserker') && (state.monstersFoughtThisRoom || 0) > 0) {
+    parts.push({ label: 'Berserker', value: state.monstersFoughtThisRoom, op: '+' })
+  }
   return { value: Math.max(0, sumParts(parts)), parts }
 }
 
@@ -1073,6 +1171,14 @@ export function describeDamage(state, card, weaponUsed) {
   if (weaponUsed) {
     const ws = describeWeaponStrength(state, weaponUsed)
     if (ws) parts.push({ label: 'weapon', value: ws.value, op: '-' })
+  } else {
+    for (const id of activeBoons(state)) {
+      const reduction = BOONS[id]?.brawlerReduction || 0
+      if (reduction) {
+        parts.push({ label: BOONS[id].name, value: reduction, op: '-' })
+        break
+      }
+    }
   }
 
   if (state.monstersFoughtThisRoom === 0) {
@@ -1082,6 +1188,9 @@ export function describeDamage(state, card, weaponUsed) {
         parts.push({ label: BOONS[id].name, value: reduction, op: '-' })
         break
       }
+    }
+    if (weaponUsed && hasBoon(state, 'cowards_reward') && (state.cowardsRewardCharge || 0) > 0) {
+      parts.push({ label: "Coward's Reward", value: state.cowardsRewardCharge, op: '-' })
     }
   }
 
