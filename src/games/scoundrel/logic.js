@@ -39,7 +39,7 @@ export function shuffle(arr, rng = Math.random) {
   return a
 }
 
-// The "persistent deck" — base 44 minus strikes, with transmutes and hefts
+// The "persistent deck": base 44 minus strikes, with transmutes and hefts
 // applied. IDs are stable across these edits. Used by the Forge UI and as
 // the starting point for buildDescentDeck.
 export function computeCurrentDeck(state) {
@@ -195,7 +195,7 @@ function bonusVsSuitFor(state, card) {
 
 // -- Weapon helpers ----------------------------------------------------
 
-// Cracked Blade lifts the binding cap — the weapon swings at any monster,
+// Cracked Blade lifts the binding cap. The weapon swings at any monster,
 // but shatters if it kills above its previous high (handled in
 // applyMonsterFight). Without that theme, the usual lastSlain rule applies.
 function isWeaponBoundFor(state, weapon, monsterCard) {
@@ -246,21 +246,21 @@ function applyHpLoss(state, amount) {
     amount = amount - absorbed
     next = appendLog(
       { ...next, numbRemaining: state.numbRemaining - absorbed },
-      `Numb absorbs ${absorbed} — the hurt slides off.`
+      `Numb absorbs ${absorbed}. The hurt slides off.`
     )
   }
   next = { ...next, hp: next.hp - amount }
 
   if (next.hp <= 0 && hasBoon(next, 'twin_souls') && !next.twinSoulsUsed) {
     next = appendLog({ ...next, hp: 1, twinSoulsUsed: true },
-      'Twin Souls — the second self steadies the body. You stand at 1 HP.')
+      'Twin Souls: the second self steadies the body. You stand at 1 HP.')
   }
   if (next.hp <= 0) {
     return { state: endDescentDeath({ ...next, hp: 0 }), dead: true }
   }
   if (next.hp > 0 && next.hp <= 3 && hasBoon(next, 'second_wind') && !next.secondWindUsed) {
     next = appendLog({ ...next, hp: Math.min(next.maxHp, 6), secondWindUsed: true },
-      'Second Wind catches you — breath returns, HP steadies at 6.')
+      'Second Wind catches you. Breath returns, HP steadies at 6.')
   }
   return { state: next, dead: false }
 }
@@ -299,13 +299,13 @@ function applyRoomEntryEffects(state, room, firstNewIdx) {
     }))
     next = { ...next, deck: next.deck.concat(dups) }
     next = appendLog(next,
-      `Echo — ${monsters.map(fmt).join(', ')} ${monsters.length === 1 ? 'echoes' : 'echo'} to the bottom of the deck.`)
+      `Echo: ${monsters.map(fmt).join(', ')} ${monsters.length === 1 ? 'echoes' : 'echo'} to the bottom of the deck.`)
   }
 
   // Tithe: lose HP per room entered. Can kill (honors Twin Souls / Second Wind).
   const titheLoss = themeFieldSum(themes, 'tithe')
   if (titheLoss > 0) {
-    next = appendLog(next, `Tithe — the hall takes ${titheLoss} HP at the threshold.`)
+    next = appendLog(next, `Tithe: the hall takes ${titheLoss} HP at the threshold.`)
     const result = applyHpLoss(next, titheLoss)
     return { state: result.state, room: nextRoom, dead: result.dead }
   }
@@ -317,7 +317,7 @@ function applyRoomEntryEffects(state, room, firstNewIdx) {
 
 export function createRun(rng = Math.random) {
   // On the very first sanctuary visit (before descent 1) there is no Boon
-  // offer and no Forge. Descent 1 of every run runs under "The Quiet" — a
+  // offer and no Forge. Descent 1 of every run runs under "The Quiet", a
   // friendly warm-up theme that gives +10 max HP. Tier-1 themes start at
   // descent 2.
   const nextTheme = 'the_quiet'
@@ -398,7 +398,7 @@ export function descend(state) {
   const muteState = mutedBoon ? { ...state, mutedBoon } : state
   const maxHp = computeMaxHp(muteState, themeId, themeChildren)
 
-  // Carried weapons arrive rested (lastSlain cleared) — DESIGN.md §2.
+  // Carried weapons arrive rested (lastSlain cleared). DESIGN.md §2.
   const weapon = state.carriedWeapon
     ? { rank: state.carriedWeapon.rank, originalRank: state.carriedWeapon.originalRank, lastSlain: null }
     : null
@@ -410,8 +410,8 @@ export function descend(state) {
   const baseLine = !baseTheme
     ? 'You descend. The dungeon is quiet tonight; the deep dream is still asleep.'
     : (themes.length > 1
-        ? `You descend. Tonight, ${baseTheme.name.toLowerCase()} is upon the halls — ${themes.map(t => t.name).join(' and ')}.`
-        : `You descend. Tonight, ${baseTheme.name.toLowerCase()} is upon the halls.`)
+        ? `You descend. ${baseTheme.name.toLowerCase()} is upon the halls: ${themes.map(t => t.name).join(' and ')}.`
+        : `You descend. ${baseTheme.name.toLowerCase()} is upon the halls.`)
 
   const canFlee = !themeFlagAny(themes, 'cannotFlee')
 
@@ -445,7 +445,7 @@ export function descend(state) {
 
   if (mutedBoon) {
     descentState = appendLog(descentState,
-      `Wormwood — ${BOONS[mutedBoon]?.name} falls silent this descent.`)
+      `Wormwood: ${BOONS[mutedBoon]?.name} falls silent this descent.`)
   }
 
   // Apply first-room entry effects with slot 0 as the "first new card".
@@ -503,14 +503,14 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     lastMonsterSuit: monsterCard.suit,
     riposteCharge: 0,
     // Coward's Reward charge is spent on the first fight of a room, weapon
-    // or no — you only get one "opening" per room.
+    // or no. You only get one "opening" per room.
     cowardsRewardCharge: wasFirstFight ? 0 : (state.cowardsRewardCharge || 0),
   }
 
   // Weapon update: under Cracked Blade, slaying above the weapon's own
   // rank shatters it; otherwise lastSlain advances normally.
-  // Crushing Blow: if the kill cost you no HP — weapon, Hunter, Vanguard,
-  // Riposte, whatever brought it to 0 — the binding is untouched.
+  // Crushing Blow: if the kill cost you no HP (weapon, Hunter, Vanguard,
+  // Riposte, whatever brought it to 0), the binding is untouched.
   let weaponShattered = false
   if (chosen) {
     const shatters = themeFlagAny(themes, 'crackedBlade') && monsterCard.rank > weaponUsed.rank
@@ -527,7 +527,7 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
       }
     }
   } else if (hasBoon(state, 'executioner')) {
-    // Bare-handed kills raise the equipped weapon's ceiling — even slay
+    // Bare-handed kills raise the equipped weapon's ceiling. Even slay
     // a K with your fists to free the blade for everything below.
     const lift = (w) => {
       if (!w) return w
@@ -540,7 +540,7 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
   }
 
   // Carrion: slain monsters return once at rank 2 of their suit. Skip if
-  // this card is itself a carrion revenant — one return per original.
+  // this card is itself a carrion revenant. One return per original.
   if (themeFlagAny(themes, 'carrion') && !monsterCard.carrioned) {
     const revenant = {
       suit: monsterCard.suit,
@@ -552,21 +552,21 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     const insertAt = deck.length === 0 ? 0 : Math.floor(state.rng() * (deck.length + 1))
     deck.splice(insertAt, 0, revenant)
     next = { ...next, deck }
-    next = appendLog(next, `Carrion — ${fmt(monsterCard)} stirs again in the deck as ${fmt(revenant)}.`)
+    next = appendLog(next, `Carrion: ${fmt(monsterCard)} stirs again in the deck as ${fmt(revenant)}.`)
   }
 
   const glyph = SUIT_GLYPH[monsterCard.suit]
   const how = weaponUsed
     ? `with the ${rankLabel(weaponUsed.rank)}♦`
     : 'bare-handed'
-  next = appendLog(next, `Fought ${rankLabel(monsterCard.rank)}${glyph} ${how} — took ${damage}.`)
+  next = appendLog(next, `Fought ${rankLabel(monsterCard.rank)}${glyph} ${how}, took ${damage}.`)
 
   if (consumedCowardsCharge > 0 && weaponUsed) {
-    next = appendLog(next, `Coward's Reward — the opening swing landed +${consumedCowardsCharge}.`)
+    next = appendLog(next, `Coward's Reward: the opening swing landed +${consumedCowardsCharge}.`)
   }
 
   if (weaponShattered) {
-    next = appendLog(next, 'The blade shatters under the strain — Cracked Blade claims it.')
+    next = appendLog(next, 'The blade shatters under the strain. Cracked Blade claims it.')
   }
 
   // Riposte: bank half this fight's actual damage (rounded down).
@@ -574,7 +574,7 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
     const charge = Math.floor(damage / 2)
     if (charge > 0) {
       next.riposteCharge = charge
-      next = appendLog(next, `Riposte holds — the next monster deals ${charge} less.`)
+      next = appendLog(next, `Riposte holds: the next monster deals ${charge} less.`)
     }
   }
 
@@ -601,7 +601,7 @@ function playPotion(state, index, card) {
   if (hasBoon(state, 'stoic')) {
     const next = appendLog(
       { ...state, room, discard: state.discard.concat(card) },
-      `Set aside ${fmt(card)} — Stoic. No draught passes your lips.`
+      `Set aside ${fmt(card)}. Stoic. No draught passes your lips.`
     )
     return checkRefillAndComplete(next)
   }
@@ -616,21 +616,21 @@ function playPotion(state, index, card) {
   // Apothecary: any potion after the first damages instead of healing.
   if (apothecary && playedNow >= 1) {
     const damage = card.rank
-    next = appendLog(next, `Sour draught — ${fmt(card)} bites back for ${damage}.`)
+    next = appendLog(next, `Sour draught: ${fmt(card)} bites back for ${damage}.`)
     const result = applyHpLoss(next, damage)
     if (result.dead) return result.state
     return checkRefillAndComplete(result.state)
   }
 
-  // Normal heal path — first potion always, plus extras up to Sip's limit.
+  // Normal heal path: first potion always, plus extras up to Sip's limit.
   if (playedNow < limit) {
     const healAmount = bitterBrew ? Math.floor(card.rank / 2) : card.rank
     const healed = Math.min(next.maxHp, next.hp + healAmount) - next.hp
     next.hp = next.hp + healed
     const note = bitterBrew ? 'bitter, ' : ''
-    next = appendLog(next, `Drank ${fmt(card)} — ${note}restored ${healed} HP.`)
+    next = appendLog(next, `Drank ${fmt(card)}, ${note}restored ${healed} HP.`)
   } else {
-    // Overflow path: Alchemist and Field Surgeon stack — each adds its bit.
+    // Overflow path: Alchemist and Field Surgeon stack, each adds its bit.
     const alchAmt = hasBoon(next, 'alchemist') ? Math.ceil(card.rank / 2) : 0
     const surgAmt = hasBoon(next, 'field_surgeon') ? 1 : 0
     const totalHeal = alchAmt + surgAmt
@@ -640,9 +640,9 @@ function playPotion(state, index, card) {
       const reasons = []
       if (alchAmt) reasons.push('Alchemist')
       if (surgAmt) reasons.push('Field Surgeon')
-      next = appendLog(next, `Overflow ${fmt(card)} — ${reasons.join(' and ')} drew ${healed} HP from the dregs.`)
+      next = appendLog(next, `Overflow ${fmt(card)}: ${reasons.join(' and ')} drew ${healed} HP from the dregs.`)
     } else {
-      next = appendLog(next, `Potion ${fmt(card)} wasted — no thirst left.`)
+      next = appendLog(next, `Potion ${fmt(card)} wasted. No thirst left.`)
     }
   }
 
@@ -687,7 +687,7 @@ function playWeapon(state, index, card) {
     spareWeapon: nextSpare,
   }
   const rustNote = rusty < 0
-    ? ` (rusty — bites as a ${rankLabel(effectiveRank)})`
+    ? ` (rusty, bites as a ${rankLabel(effectiveRank)})`
     : ''
   next = appendLog(next, `Took up the ${rankLabel(card.rank)}♦${rustNote}${swapNote}.`)
 
@@ -848,6 +848,15 @@ function endDescentVictory(state) {
 
 // -- Flee --------------------------------------------------------------
 
+// Oath marks the "first new card" of a room face-down. When a flee sends the
+// room back to the bottom of the deck, that flag has to come off, or the card
+// stays face-down on its next redraw and stacks with the new room's Oath card.
+function stripFaceDown(card) {
+  if (!card || !card.faceDown) return card
+  const { faceDown, ...rest } = card
+  return rest
+}
+
 // Pick the best card to "pocket" when fleeing: highest-rank item (weapon or
 // potion), or the lowest-rank monster if no items remain.
 function pickPocketTarget(room) {
@@ -870,7 +879,7 @@ export function fleeRoom(state) {
 
   const usingCloak = hasBoon(state, 'scoundrels_cloak') && !state.cloakUsed
   const targetSize = getRoomSize(themes)
-  // Coward's Reward — each flee banks +1 on your next opening swing (cap 3).
+  // Coward's Reward: each flee banks +1 on your next opening swing (cap 3).
   const cowardsCharge = hasBoon(state, 'cowards_reward')
     ? Math.min(3, (state.cowardsRewardCharge || 0) + 1)
     : (state.cowardsRewardCharge || 0)
@@ -880,7 +889,7 @@ export function fleeRoom(state) {
     const kept = pickPocketTarget(filled)
     const keptIndex = kept ? state.room.findIndex(c => c && c.id === kept.id) : -1
     const others = kept ? filled.filter(c => c.id !== kept.id) : filled
-    const deck = state.deck.concat(others)
+    const deck = state.deck.concat(others.map(stripFaceDown))
 
     const newRoom = new Array(targetSize).fill(null)
     if (kept && keptIndex >= 0 && keptIndex < targetSize) newRoom[keptIndex] = kept
@@ -893,7 +902,7 @@ export function fleeRoom(state) {
     }
 
     const note = kept
-      ? `You retreat — palmed ${rankLabel(kept.rank)}${SUIT_GLYPH[kept.suit]} on the way out.`
+      ? `You retreat, palmed ${rankLabel(kept.rank)}${SUIT_GLYPH[kept.suit]} on the way out.`
       : 'You retreat. The room scatters back into the dark.'
     let next = appendLog(
       {
@@ -906,10 +915,10 @@ export function fleeRoom(state) {
         monstersFoughtThisRoom: 0,
         cowardsRewardCharge: cowardsCharge,
       },
-      usingCloak ? `${note} (Scoundrel's Cloak — you can flee again.)` : note
+      usingCloak ? `${note} (Scoundrel's Cloak: you can flee again.)` : note
     )
     if (hasBoon(next, 'cowards_reward')) {
-      next = appendLog(next, `Coward's Reward — opening swing banked at +${cowardsCharge}.`)
+      next = appendLog(next, `Coward's Reward: opening swing banked at +${cowardsCharge}.`)
     }
 
     const entry = applyRoomEntryEffects(next, next.room, firstNewIdx)
@@ -917,7 +926,7 @@ export function fleeRoom(state) {
     return { ...entry.state, room: entry.room }
   }
 
-  const carry = state.room.filter(Boolean)
+  const carry = state.room.filter(Boolean).map(stripFaceDown)
   const deck = state.deck.concat(carry)
   const room = deck.splice(0, targetSize)
 
@@ -933,11 +942,11 @@ export function fleeRoom(state) {
       cowardsRewardCharge: cowardsCharge,
     },
     usingCloak
-      ? 'You retreat. The room scatters back into the dark. (Scoundrel\'s Cloak — you can flee again.)'
+      ? 'You retreat. The room scatters back into the dark. (Scoundrel\'s Cloak: you can flee again.)'
       : 'You retreat. The room scatters back into the dark.'
   )
   if (hasBoon(next, 'cowards_reward')) {
-    next = appendLog(next, `Coward's Reward — opening swing banked at +${cowardsCharge}.`)
+    next = appendLog(next, `Coward's Reward: opening swing banked at +${cowardsCharge}.`)
   }
 
   const entry = applyRoomEntryEffects(next, next.room, 0)
@@ -973,7 +982,7 @@ export function closeForgeView(state) {
 }
 
 // Strike's offering may match the monster's rank or fall up to this many
-// ranks below it — a lighter blade can still balance the carving, within
+// ranks below it. A lighter blade can still balance the carving, within
 // reason. K and A monsters are effectively immune since no offering reaches
 // their weight (rank ≤ 10 cap on hearts and diamonds).
 export const STRIKE_OFFERING_RANGE = 2
@@ -1009,7 +1018,7 @@ export function applyTransmute(state, cardId, newSuit) {
   if (!card) return state
   if (card.suit === newSuit) return state
   // Color-locked: ♥↔♦ and ♣↔♠ only. The threshold won't accept a
-  // cross-color carving — too far a reshape for the rite to hold.
+  // cross-color carving (too far a reshape for the rite to hold).
   if (suitColor(card.suit) !== suitColor(newSuit)) return state
 
   return appendLog(
@@ -1095,9 +1104,9 @@ export function previewMonsterDamage(state, card) {
   return { weapon, bare, faceDown: false }
 }
 
-// Returns the resolved list of active themes for this descent — the parent
+// Returns the resolved list of active themes for this descent: the parent
 // for single-theme nights, or the children of a compound theme like
-// The Long Night. UI uses this to display "tonight's air" expansively.
+// The Long Night. UI uses this to display theme expansively.
 export function getActiveThemesForState(state) {
   return activeThemes(state)
 }

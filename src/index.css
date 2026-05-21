@@ -55,7 +55,7 @@
 }
 
 @layer components {
-  /* A reusable "carved panel" recipe — every info container should use this
+  /* A reusable "carved panel" recipe. Every info container should use this
      so the page reads as one design rather than five. Tailwind utilities can
      still override individual properties (e.g. p-3, border-amber-700). */
   .panel {
@@ -117,6 +117,27 @@
 
   .animate-theme-intro-children {
     animation: themeIntroBody 0.9s ease-out 0.5s both;
+  }
+
+  /* Per-suit fan: cards cascade down a column so only the top strip
+     (rank + suit glyph) of each prior card is exposed. Hovered /
+     selected / focused card slides slightly right and jumps to the
+     front of the stack so the full card is visible. Base z-index is
+     set inline via --fan-z so later cards sit above earlier ones. */
+  .card-fan-item {
+    z-index: var(--fan-z, 1);
+    transition: transform 0.16s ease-out, box-shadow 0.16s ease-out;
+  }
+  .card-fan-item:hover,
+  .card-fan-item:focus-visible {
+    z-index: 999;
+    transform: translateX(0.4rem);
+    box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.7);
+  }
+  .card-fan-item[data-selected="true"] {
+    z-index: 1000;
+    transform: translateX(0.4rem);
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.45), 0 6px 18px -8px rgba(0, 0, 0, 0.7);
   }
 }
 

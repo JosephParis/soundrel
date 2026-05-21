@@ -54,7 +54,7 @@ function Formula({ parts, className }) {
   )
 }
 
-// Border color by card type — monsters deep green, weapons cool gray, potions deep purple.
+// Border color by card type: monsters deep green, weapons cool gray, potions deep purple.
 function cardBorderTone(card) {
   if (!card) return 'border-stone-700'
   if (isMonster(card)) return 'border-green-700'
@@ -65,10 +65,10 @@ function cardBorderTone(card) {
 
 // SVG paths from game-icons.net (Lorc, CC-BY 3.0).
 // One silhouette per suit so the room reads at a glance.
-//   ♠ harry-potter-skull (Lorc) — Dark Mark
-//   ♣ animal-skull (Lorc)       — beast
-//   ♦ broadsword (Lorc)         — weapon
-//   ♥ potion-ball (Lorc)        — potion vial
+//   ♠ harry-potter-skull (Lorc): Dark Mark
+//   ♣ animal-skull (Lorc):       beast
+//   ♦ broadsword (Lorc):         weapon
+//   ♥ potion-ball (Lorc):        potion vial
 const SUIT_ICON_PATHS = {
   [SPADE]: 'M256.16 15.822c-74.685 0-124.825 36.292-157.865 90.487C66.36 158.692 51.637 228.053 50.68 294.954c44.44 12.795 73.834 28.683 90.46 50.123 15.804 20.383 18.445 45.188 12.157 71.963 23.635 7.218 62.826 11.32 100.986 10.905 38.28-.416 76.213-5.67 96.373-13.44-4.608-25.936-.182-50.215 16.983-70.07 17.928-20.738 48.197-36.53 93.4-49.488-.972-63.406-15.24-132.688-46.868-185.92-20.367-34.277-47.386-61.936-82.97-77.972-62.555 14.347-113.232 44.996-143.62 84.12 25.38 8.96 46.088 21.593 65.35 34.583l10.742 7.244-10.266 7.906c-26.884 20.705-46.28 43.707-65.26 67.48 28.468 22.27 47.56 52.2 29.02 65.186-33.572 23.518-170.713 1.396-119.002-78.754 6.006-9.31 15.307-13.314 26.2-13.496 14.635-.244 32.144 6.414 48.4 16.37 17.11-21.452 35.198-43.144 59.1-63.32-18.538-11.88-37.98-22.425-61.975-29.265l-12.29-3.503 7.066-10.65c28.184-42.48 75.737-75.727 134.613-94.523-13.362-3.012-27.71-4.612-43.118-4.612h-.002zm126.594 189.502c10.892.182 20.19 4.187 26.197 13.496 51.712 80.15-85.427 102.272-119 78.754-31.496-22.06 45.603-93.04 92.804-92.25zM252.2 309.057c13.922 0 38.53 68.05 30.277 79.51-6.48 8.996-54.935 8.617-60.555 0-7.197-11.034 16.31-79.51 30.277-79.51zM354.71 433.13c-10.557 3.91-23.223 6.832-37.17 8.952l5.94 48.89h53.416l-22.185-57.84zm-207.888 1.57-18.5 56.273h47.092l5.914-48.684c-12.764-1.877-24.484-4.38-34.506-7.59zm152.17 9.667c-13.13 1.28-26.996 1.98-41.078 2.21v44.396h46.74l-5.662-46.606zm-99.107.14-5.647 46.466h44.99V446.6c-13.444-.204-26.714-.894-39.343-2.094z',
   [CLUB]: 'M179.3 38.94C154.7 77.7 142.7 139.7 168.4 185.9l-16.3 9.2c-6.7-11.9-11.2-24.4-13.9-37.2-34.5-6.3-69.42-7.5-104.98-2.1 34.07 10.1 52.77 23.7 76.68 46.7-26.82 9.7-60.25 30.2-92.93 70.2 35.47-8.8 64.83-11.5 89.43-6.3-36.94 22.5-64.06 56.1-88.34 114.1 35.9-17.2 64.89-18.8 102.94-18.8-23.07 32.7-35.27 77.2-36.31 112.8 24.51-26 57.61-60.2 87.21-79 3 29.9 15 58.3 35.9 85.3-.2-43.9 10.3-88.3 31.6-133.4-18.8 9-32.4 18.1-49.9 29.3 6.2-27.9 12.4-55.8 18.7-83.7-23.3 2.4-39 10-60.5 18.5 16.3-33.1 32.7-66.1 49.1-99.2l16.8 8.3-28.4 57.4c18.4-4.4 28.7-4.1 45.7-1.3-4.5 20.4-9 40.7-13.6 61 65.3-36.2 148.3-45.9 226.7-50 7.6-12.9 13.8-24.2 18.8-34.8l-6.3-24.4-24.4 30.8-7.8-27.5-22.5 29.2-7.5-26.1-23.9 31.5-7.7-28.2-23.8 31.4 1.2-41.1 22.6-42.7 7.6 28.3 23.9-31.5 7.6 28.2 23.5-30 6.5 26.9 24.5-30.8 7.8 27.5 24.6-32c2.3-10.8 4.6-22.4 7.4-35.7-55.5-3.7-106.3 4.8-154 9.8-38-20.8-80.8-26.8-121.9-18.5-13.6-29.69-27.2-59.38-40.9-89.06zM325.5 158.3c-4.5 14.2-13 18.3-24.7 20.6-16.1-4.4-28.3-15.5-34.4-30.2 20.4-3.8 42.4 3.4 59.1 9.6z',
@@ -88,7 +88,7 @@ function SuitIcon({ suit, className }) {
   )
 }
 
-// Colored tint per category — kept saturated since the icon is the
+// Colored tint per category. Kept saturated since the icon is the
 // centerpiece, not a watermark.
 function suitIconTone(card) {
   if (isMonster(card)) return 'text-green-800'
@@ -102,7 +102,7 @@ function suitIconTone(card) {
 // Save / load
 // ============================================================
 // Bump SAVE_VERSION whenever the shape of game state in logic.js changes
-// in a way that would break older saves — old data is discarded silently.
+// in a way that would break older saves. Old data is discarded silently.
 const SAVE_KEY = 'scoundrel:save'
 const SAVE_VERSION = 1
 
@@ -123,7 +123,7 @@ function saveGame(state) {
     const { rng: _rng, ...serializable } = state
     localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, state: serializable }))
   } catch {
-    // Quota exceeded or storage disabled — silently skip.
+    // Quota exceeded or storage disabled. Silently skip.
   }
 }
 
@@ -186,7 +186,7 @@ export default function Scoundrel() {
 }
 
 // ============================================================
-// Top bar — persistent across phases
+// Top bar (persistent across phases)
 // ============================================================
 
 function TopBar({ game, onOpenRules, onRetire }) {
@@ -417,6 +417,7 @@ function CreditsModal({ open, onClose }) {
           <ul className="space-y-1.5 text-[15px] text-parchment font-display">
             <li>Alexander Beck</li>
             <li>Bronislaw Andrus</li>
+            <li>Wesley Andrus</li>
             <li>Joshua Rolfe</li>
           </ul>
           <p className="mt-5 text-[12px] text-slate-400 italic leading-snug">
@@ -477,7 +478,7 @@ function DevPanel({ game, setGame }) {
       forgeUsed: false,
       forgeView: null,
       mutedBoon: null,
-      log: [...g.log, `[dev] overrides applied — sigils ${sigils}, theme "${themeObj?.name || themeId}".`],
+      log: [...g.log, `[dev] overrides applied: sigils ${sigils}, theme "${themeObj?.name || themeId}".`],
     }))
   }
 
@@ -593,14 +594,14 @@ function DevPanel({ game, setGame }) {
 function SanctuaryHero({ isOpeningVisit }) {
   return (
     <header className="text-center pt-2 pb-4">
-      <h1 className="font-display text-3xl sm:text-4xl text-rune">The Great Hall</h1>
+      <h1 className="font-display text-3xl sm:text-4xl text-rune">Sanctuary</h1>
       <div className="rune-divider mt-3 mb-2 mx-auto max-w-xs text-rune/40 text-[10px]">
         <span>✦</span>
       </div>
       <p className="text-sm text-slate-400 max-w-xl mx-auto">
         {isOpeningVisit
-          ? 'The rune-chains hum. The dark below is quiet — for now.'
-          : 'The carving-stones are silent. The dungeon shifts beyond the threshold.'}
+          ? 'You wake in a quiet chamber. The only way out leads down.'
+          : 'The chamber is still. Below, the dark waits.'}
       </p>
     </header>
   )
@@ -610,7 +611,6 @@ function NextThemePanel({ theme, childThemeIds }) {
   const childThemes = (childThemeIds || []).map(id => getTheme(id)).filter(Boolean)
   return (
     <div className="panel p-4">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Tonight's air</div>
       <div className="font-display text-rune text-lg mb-1">{theme.name}</div>
       <div className="text-[13px] text-slate-300 leading-snug">{theme.description}</div>
       {childThemes.length > 0 && (
@@ -618,7 +618,7 @@ function NextThemePanel({ theme, childThemeIds }) {
           {childThemes.map(c => (
             <li key={c.id} className="text-[12px] leading-snug">
               <span className="text-rune font-semibold">{c.name}</span>
-              <span className="text-slate-400"> — {c.description}</span>
+              <span className="text-slate-400">: {c.description}</span>
             </li>
           ))}
         </ul>
@@ -634,30 +634,62 @@ const BOON_TAG_LABEL = {
   build: 'Build',
 }
 
+function ConfirmButton({ onClick, disabled, label }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-6 py-2.5 rounded-md text-sm font-medium border transition bg-rune text-stone-950 border-rune hover:bg-amber-300 disabled:bg-stone-800 disabled:text-slate-600 disabled:border-stone-700 disabled:cursor-not-allowed"
+    >
+      {label}
+    </button>
+  )
+}
+
 function BoonOfferPanel({ offers, onPick }) {
+  const [selectedId, setSelectedId] = useState(null)
+  const selectedBoon = selectedId ? getBoon(selectedId) : null
   return (
     <section className="panel p-6">
       <div className="text-center mb-5">
-        <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">A memory carved</div>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Something comes to you</div>
         <h2 className="font-display text-rune text-xl mt-1">Pick one Boon</h2>
-        <p className="text-[12px] text-slate-500 mt-1">Permanent for the rest of the run.</p>
+        <p className="text-[12px] text-slate-500 mt-1">A tool, a memory, a way of moving. Permanent for the rest of the run.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-items-center">
         {offers.map(id => {
           const boon = getBoon(id)
-          return <BoonCard key={id} boon={boon} onPick={() => onPick(id)} />
+          return (
+            <BoonCard
+              key={id}
+              boon={boon}
+              selected={selectedId === id}
+              onPick={() => setSelectedId(id)}
+            />
+          )
         })}
+      </div>
+      <div className="flex justify-center mt-5">
+        <ConfirmButton
+          onClick={() => onPick(selectedId)}
+          disabled={!selectedId}
+          label={selectedBoon ? `Take ${selectedBoon.name}` : 'Pick a Boon above'}
+        />
       </div>
     </section>
   )
 }
 
-function BoonCard({ boon, onPick }) {
+function BoonCard({ boon, selected, onPick }) {
   const tag = BOON_TAG_LABEL[boon.tag] || ''
   return (
     <button
       onClick={onPick}
-      className="group aspect-[2/3] w-full max-w-[230px] text-left rounded-lg border border-stone-700 bg-gradient-to-b from-stone-900 to-stone-950 p-5 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:-translate-y-1 transition-all duration-200 shadow-md hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)] flex flex-col relative overflow-hidden"
+      className={`group aspect-[2/3] w-full max-w-[230px] text-left rounded-lg border bg-gradient-to-b p-5 hover:-translate-y-1 transition-all duration-200 shadow-md flex flex-col relative overflow-hidden ${
+        selected
+          ? 'border-rune from-stone-800 to-stone-900 shadow-[0_0_24px_-8px_rgba(251,191,36,0.6)]'
+          : 'border-stone-700 from-stone-900 to-stone-950 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)]'
+      }`}
     >
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/40 to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/20 to-transparent" />
@@ -680,36 +712,75 @@ function BoonCard({ boon, onPick }) {
 }
 
 function ForgePromptPanel({ onStrike, onTransmute, onHeft }) {
+  const [selected, setSelected] = useState(null)
+  const options = [
+    {
+      id: 'strike',
+      name: 'Strike',
+      description: `Remove a monster, then pick a weapon or potion at its rank or up to ${STRIKE_OFFERING_RANGE} below to also remove. Aces and Kings cannot be struck.`,
+      open: onStrike,
+    },
+    {
+      id: 'transmute',
+      name: 'Transmute',
+      description: "Change a card's suit. Rank is unchanged. Color is locked: hearts ↔ diamonds, clubs ↔ spades.",
+      open: onTransmute,
+    },
+    {
+      id: 'heft',
+      name: 'Heft',
+      description: `Raise a weapon or potion's rank by ${HEFT_BONUS}. Capped at rank 10.`,
+      open: onHeft,
+    },
+  ]
+  const selectedOption = options.find(o => o.id === selected)
   return (
-    <section className="panel panel-warm p-5">
-      <div className="text-center mb-4">
+    <section className="panel panel-warm p-6">
+      <div className="text-center mb-5">
         <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">The Forge is open</div>
-        <h2 className="font-display text-rune text-lg mt-1">Carve once into the threshold</h2>
+        <h2 className="font-display text-rune text-xl mt-1">The coals are still warm</h2>
         <p className="text-[12px] text-slate-400 mt-1 max-w-md mx-auto">
-          Strike a name (with a matched offering), transmute a card's suit, or heft a weapon or potion to a heavier rank.
+          Pick one. The edit is permanent for the rest of the run.
         </p>
       </div>
-      <div className="flex gap-3 justify-center flex-wrap">
-        <button
-          onClick={onStrike}
-          className="px-5 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 text-parchment text-sm font-medium border border-stone-700 transition"
-        >
-          Strike a name
-        </button>
-        <button
-          onClick={onTransmute}
-          className="px-5 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 text-parchment text-sm font-medium border border-stone-700 transition"
-        >
-          Transmute a card
-        </button>
-        <button
-          onClick={onHeft}
-          className="px-5 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 text-parchment text-sm font-medium border border-stone-700 transition"
-        >
-          Heft a card
-        </button>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-items-center">
+        {options.map(o => (
+          <ForgeOptionCard
+            key={o.id}
+            name={o.name}
+            description={o.description}
+            selected={selected === o.id}
+            onPick={() => setSelected(o.id)}
+          />
+        ))}
+      </div>
+      <div className="flex justify-center mt-5">
+        <ConfirmButton
+          onClick={() => selectedOption?.open()}
+          disabled={!selectedOption}
+          label={selectedOption ? `Open ${selectedOption.name}` : 'Pick an action above'}
+        />
       </div>
     </section>
+  )
+}
+
+function ForgeOptionCard({ name, description, selected, onPick }) {
+  return (
+    <button
+      onClick={onPick}
+      className={`group aspect-[2/3] w-full max-w-[230px] text-left rounded-lg border bg-gradient-to-b p-5 hover:-translate-y-1 transition-all duration-200 shadow-md flex flex-col relative overflow-hidden ${
+        selected
+          ? 'border-rune from-stone-800 to-stone-900 shadow-[0_0_24px_-8px_rgba(251,191,36,0.6)]'
+          : 'border-stone-700 from-stone-900 to-stone-950 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)]'
+      }`}
+    >
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/40 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/20 to-transparent" />
+      <div className="font-display text-rune text-lg leading-tight">{name}</div>
+      <div className="h-px bg-stone-700 my-3" />
+      <div className="text-[13px] text-slate-200 leading-snug">{description}</div>
+    </button>
   )
 }
 
@@ -717,20 +788,27 @@ function ForgePromptPanel({ onStrike, onTransmute, onHeft }) {
 // Forge views
 // ============================================================
 
-function ForgeViewShell({ kindLabel, title, blurb, children, onCancel, cancelLabel }) {
+function ForgeViewShell({ kindLabel, title, blurb, children, onCancel, cancelLabel, onConfirm, confirmLabel, canConfirm }) {
   return (
     <section className="panel panel-warm p-5">
       <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70 mb-1">{kindLabel}</div>
       <h2 className="font-display text-rune text-lg mb-1">{title}</h2>
       <p className="text-[12px] text-slate-400 mb-4">{blurb}</p>
       {children}
-      <div className="flex justify-center mt-4">
+      <div className="flex justify-center gap-3 mt-4 flex-wrap">
         <button
           onClick={onCancel}
           className="px-4 py-2 rounded-md bg-stone-800 hover:bg-stone-700 text-slate-300 text-sm border border-stone-700"
         >
           {cancelLabel}
         </button>
+        {onConfirm && (
+          <ConfirmButton
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            label={confirmLabel}
+          />
+        )}
       </div>
     </section>
   )
@@ -739,6 +817,7 @@ function ForgeViewShell({ kindLabel, title, blurb, children, onCancel, cancelLab
 function StrikeView({ game, onConfirm, onCancel }) {
   const { monsters, byRank } = useMemo(() => getStrikeOptions(game), [game])
   const [pickedMonster, setPickedMonster] = useState(null)
+  const [pickedOffering, setPickedOffering] = useState(null)
   const offerings = pickedMonster
     ? Array.from({ length: STRIKE_OFFERING_RANGE + 1 }, (_, i) => byRank[pickedMonster.rank - i] || [])
         .flat()
@@ -746,20 +825,34 @@ function StrikeView({ game, onConfirm, onCancel }) {
 
   const lowest = pickedMonster ? Math.max(2, pickedMonster.rank - STRIKE_OFFERING_RANGE) : null
 
+  const pickMonster = (c) => {
+    setPickedMonster(c)
+    setPickedOffering(null)
+  }
+
+  const confirmLabel = pickedMonster && pickedOffering
+    ? `Strike ${rankLabel(pickedMonster.rank)}${SUIT_GLYPH[pickedMonster.suit]} with ${rankLabel(pickedOffering.rank)}${SUIT_GLYPH[pickedOffering.suit]}`
+    : pickedMonster
+      ? 'Pick an offering'
+      : 'Pick a name'
+
   return (
     <ForgeViewShell
       kindLabel="Strike"
-      title="Carve a name from the rolls"
-      blurb={`Pick a monster, then pick a weapon or potion at its rank or up to ${STRIKE_OFFERING_RANGE} below. The strongest dead (K, A) remain too weighty for any offering this hold can muster.`}
+      title="Cast into the fire"
+      blurb={`Pick a monster, then pick a weapon or potion at its rank or up to ${STRIKE_OFFERING_RANGE} below. Both are gone for good. Kings and Aces are too heavy to melt.`}
       onCancel={onCancel}
-      cancelLabel="Step away from the threshold"
+      cancelLabel="Step away"
+      onConfirm={() => onConfirm(pickedMonster.id, pickedOffering.id)}
+      canConfirm={!!(pickedMonster && pickedOffering)}
+      confirmLabel={confirmLabel}
     >
       <div className="mb-4">
         <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">1. Name to bind</div>
-        <CardPickerGrid
+        <CardSuitFan
           cards={monsters}
           selected={pickedMonster?.id}
-          onPick={(c) => setPickedMonster(c)}
+          onPick={pickMonster}
         />
         {monsters.length === 0 && (
           <div className="text-[12px] text-slate-500 italic">No dead remain to bind.</div>
@@ -772,9 +865,10 @@ function StrikeView({ game, onConfirm, onCancel }) {
             2. Matched offering · rank {rankLabel(lowest)}–{rankLabel(pickedMonster.rank)}
           </div>
           {offerings.length > 0 ? (
-            <CardPickerGrid
+            <CardSuitFan
               cards={offerings}
-              onPick={(o) => onConfirm(pickedMonster.id, o.id)}
+              selected={pickedOffering?.id}
+              onPick={(o) => setPickedOffering(o)}
             />
           ) : (
             <div className="text-[12px] text-slate-500 italic">
@@ -790,25 +884,40 @@ function StrikeView({ game, onConfirm, onCancel }) {
 function TransmuteView({ game, onConfirm, onCancel }) {
   const cards = useMemo(() => getTransmuteOptions(game), [game])
   const [picked, setPicked] = useState(null)
+  const [pickedSuit, setPickedSuit] = useState(null)
   const suits = [HEART, DIAMOND, CLUB, SPADE]
   const allowedSuits = picked
     ? suits.filter(s => s !== picked.suit && suitColor(s) === suitColor(picked.suit))
     : []
 
+  const pickCard = (c) => {
+    setPicked(c)
+    setPickedSuit(null)
+  }
+
+  const confirmLabel = picked && pickedSuit
+    ? `Transmute ${rankLabel(picked.rank)}${SUIT_GLYPH[picked.suit]} → ${rankLabel(picked.rank)}${SUIT_GLYPH[pickedSuit]}`
+    : picked
+      ? 'Pick a new suit'
+      : 'Pick a card'
+
   return (
     <ForgeViewShell
       kindLabel="Transmute"
-      title="Change a card's suit"
-      blurb="The rank stays the same. Color is locked — hearts swap with diamonds, clubs swap with spades. A spade can become a club; a potion can become a weapon."
+      title="Reshape a card"
+      blurb="The rank stays. Color is locked, so hearts swap with diamonds, clubs swap with spades. A spade can become a club, a potion can become a weapon."
       onCancel={onCancel}
       cancelLabel="Step away"
+      onConfirm={() => onConfirm(picked.id, pickedSuit)}
+      canConfirm={!!(picked && pickedSuit)}
+      confirmLabel={confirmLabel}
     >
       <div className="mb-4">
         <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">1. Card to transmute</div>
-        <CardPickerGrid
+        <CardSuitFan
           cards={cards}
           selected={picked?.id}
-          onPick={(c) => setPicked(c)}
+          onPick={pickCard}
         />
       </div>
 
@@ -818,15 +927,22 @@ function TransmuteView({ game, onConfirm, onCancel }) {
             2. New suit for {rankLabel(picked.rank)}{SUIT_GLYPH[picked.suit]}
           </div>
           <div className="flex gap-2 flex-wrap justify-center">
-            {allowedSuits.map(s => (
-              <button
-                key={s}
-                onClick={() => onConfirm(picked.id, s)}
-                className="px-4 py-2 rounded-md bg-stone-800 hover:bg-stone-700 text-sm border border-stone-700"
-              >
-                {SUIT_GLYPH[s]} — {rankLabel(picked.rank)} as a {suitName(s)}
-              </button>
-            ))}
+            {allowedSuits.map(s => {
+              const isSelected = pickedSuit === s
+              return (
+                <button
+                  key={s}
+                  onClick={() => setPickedSuit(s)}
+                  className={`px-4 py-2 rounded-md text-sm border transition ${
+                    isSelected
+                      ? 'bg-stone-700 border-rune text-parchment'
+                      : 'bg-stone-800 hover:bg-stone-700 border-stone-700 text-slate-200'
+                  }`}
+                >
+                  {SUIT_GLYPH[s]}: {rankLabel(picked.rank)} as a {suitName(s)}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -836,19 +952,29 @@ function TransmuteView({ game, onConfirm, onCancel }) {
 
 function HeftView({ game, onConfirm, onCancel }) {
   const cards = useMemo(() => getHeftOptions(game), [game])
+  const [picked, setPicked] = useState(null)
+
+  const newRank = picked ? Math.min(10, picked.rank + HEFT_BONUS) : null
+  const confirmLabel = picked
+    ? `Heft ${rankLabel(picked.rank)}${SUIT_GLYPH[picked.suit]} → ${rankLabel(newRank)}${SUIT_GLYPH[picked.suit]}`
+    : 'Pick a card'
 
   return (
     <ForgeViewShell
       kindLabel="Heft"
-      title="Add weight to a weapon or potion"
-      blurb={`Pick a weapon or potion. Its rank rises by ${HEFT_BONUS}. Capped at rank 10 — no king-grade gear in this hold.`}
+      title="Add weight"
+      blurb={`Pick a weapon or potion. Its rank rises by ${HEFT_BONUS}. Capped at rank 10.`}
       onCancel={onCancel}
       cancelLabel="Step away"
+      onConfirm={() => onConfirm(picked.id)}
+      canConfirm={!!picked}
+      confirmLabel={confirmLabel}
     >
       <div>
-        <CardPickerGrid
+        <CardSuitFan
           cards={cards}
-          onPick={(c) => onConfirm(c.id)}
+          selected={picked?.id}
+          onPick={(c) => setPicked(c)}
         />
         {cards.length === 0 && (
           <div className="text-[12px] text-slate-500 italic">
@@ -867,34 +993,81 @@ function suitName(suit) {
   return 'spade monster'
 }
 
-function CardPickerGrid({ cards, selected, onPick }) {
+// Compact picker: cards group into one column per suit, sorted by
+// rank ascending. Within a column they cascade downward so only the
+// top strip (rank + suit glyph) of each prior card is exposed. Hover
+// or selection slides the card right and jumps it to the top of the
+// stack so the full card is visible.
+const SUIT_FAN_ORDER = [HEART, DIAMOND, CLUB, SPADE]
+
+function CardSuitFan({ cards, selected, onPick }) {
+  const bySuit = { [HEART]: [], [DIAMOND]: [], [CLUB]: [], [SPADE]: [] }
+  for (const c of cards) {
+    if (bySuit[c.suit]) bySuit[c.suit].push(c)
+  }
+  for (const arr of Object.values(bySuit)) {
+    arr.sort((a, b) => a.rank - b.rank)
+  }
+  const presentSuits = SUIT_FAN_ORDER.filter(s => bySuit[s].length > 0)
+  if (presentSuits.length === 0) return null
+
   return (
-    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
-      {cards.map(c => {
-        const red = c.suit === HEART || c.suit === DIAMOND
-        const isSelected = selected === c.id
-        return (
-          <button
-            key={c.id}
-            onClick={() => onPick(c)}
-            className={`aspect-[2/3] rounded border-2 p-1 flex flex-col justify-between text-left transition ${
-              isSelected
-                ? 'border-rune bg-stone-700'
-                : `${cardBorderTone(c)} bg-stone-900 hover:bg-stone-800`
-            }`}
-          >
-            <div className={`text-sm font-bold leading-none ${red ? 'text-blood' : 'text-parchment'}`}>
-              {rankLabel(c.rank)}{SUIT_GLYPH[c.suit]}
-            </div>
-            {c.transmuted && (
-              <div className="text-[8px] text-rune uppercase tracking-wider">tm</div>
-            )}
-            {c.hefted && (
-              <div className="text-[8px] text-rune uppercase tracking-wider">+{c.heftBonus}</div>
-            )}
-          </button>
-        )
-      })}
+    <div className="flex justify-center items-start gap-4 sm:gap-6 flex-wrap">
+      {presentSuits.map(suit => (
+        <CardSuitFanColumn
+          key={suit}
+          suit={suit}
+          cards={bySuit[suit]}
+          selected={selected}
+          onPick={onPick}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CardSuitFanColumn({ suit, cards, selected, onPick }) {
+  const isRed = suit === HEART || suit === DIAMOND
+  return (
+    <div className="flex flex-col items-center">
+      <div className={`mb-1.5 text-base leading-none ${isRed ? 'text-blood' : 'text-parchment'}`}>
+        {SUIT_GLYPH[suit]}
+      </div>
+      <div className="flex flex-col items-start pr-3 pb-2">
+        {cards.map((c, i) => {
+          const isSelected = selected === c.id
+          return (
+            <button
+              key={c.id}
+              onClick={() => onPick(c)}
+              data-selected={isSelected ? 'true' : undefined}
+              style={{
+                marginTop: i === 0 ? 0 : '-3.25rem',
+                '--fan-z': i + 1,
+              }}
+              className={`card-fan-item relative aspect-[2/3] w-14 sm:w-16 shrink-0 rounded border-2 p-1.5 flex flex-col justify-between text-left ${
+                isSelected
+                  ? 'border-rune bg-stone-700'
+                  : `${cardBorderTone(c)} bg-stone-900 hover:bg-stone-800 hover:border-rune/60`
+              }`}
+            >
+              <div className={`text-sm font-bold leading-none ${isRed ? 'text-blood' : 'text-parchment'}`}>
+                {rankLabel(c.rank)}{SUIT_GLYPH[c.suit]}
+              </div>
+              {(c.transmuted || c.hefted) && (
+                <div className="flex flex-col items-end gap-0.5 leading-none">
+                  {c.transmuted && (
+                    <div className="text-[8px] text-rune uppercase tracking-wider">tm</div>
+                  )}
+                  {c.hefted && (
+                    <div className="text-[8px] text-rune uppercase tracking-wider">+{c.heftBonus}</div>
+                  )}
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1083,7 +1256,7 @@ function DescentView({ game, setGame }) {
               weaponDamage = preview.weapon
               bareDamage = preview.bare
             }
-            // The player has already committed once the reveal starts —
+            // The player has already committed once the reveal starts, so
             // suppress the bare-hands alternate to avoid implying a choice.
             const showBare = weaponDamage !== null && !themeIronBones && revealing !== i
             return (
@@ -1137,7 +1310,6 @@ function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
     >
       <div className="max-w-lg text-center">
         <div className="animate-theme-intro-title">
-          <div className="text-[11px] uppercase tracking-[0.4em] text-slate-500 mb-3">Tonight's air</div>
           <h2 className="font-display text-rune text-4xl sm:text-5xl rune-pulse inline-block px-6 py-3 rounded-lg">
             {theme.name}
           </h2>
@@ -1150,7 +1322,7 @@ function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
             {childThemes.map(c => (
               <li key={c.id} className="text-[13px] leading-snug">
                 <span className="text-rune font-semibold">{c.name}</span>
-                <span className="text-slate-400"> — {c.description}</span>
+                <span className="text-slate-400">: {c.description}</span>
               </li>
             ))}
           </ul>
@@ -1173,9 +1345,9 @@ function DescentHeader({ game, theme }) {
         <h1 className="font-display text-2xl sm:text-3xl text-rune">The dungeon</h1>
         {theme && (
           <p className="text-[13px] text-slate-400 mt-1">
-            Tonight: <span className="text-parchment">{theme.name}</span>
+            <span className="text-parchment">{theme.name}</span>
             {childNames.length > 0 && (
-              <span className="text-slate-500"> — {childNames.join(' + ')}</span>
+              <span className="text-slate-500"> ({childNames.join(' + ')})</span>
             )}
           </p>
         )}
@@ -1239,7 +1411,7 @@ function ConditionsPanel({ game, theme }) {
                 const c = getTheme(id)
                 return c && (
                   <li key={id} className="text-[11px] text-slate-400 leading-snug">
-                    <span className="text-rune">{c.name}</span> — {c.description}
+                    <span className="text-rune">{c.name}</span>: {c.description}
                   </li>
                 )
               })}
@@ -1269,7 +1441,7 @@ function ConditionsPanel({ game, theme }) {
             {charges.map(c => (
               <li key={c.name} className="text-[11px]">
                 <span className={c.ready ? 'text-rune' : 'text-slate-600 line-through'}>{c.name}</span>
-                <span className="text-slate-500"> — {c.ready ? 'ready' : 'spent'}</span>
+                <span className="text-slate-500"> ({c.ready ? 'ready' : 'spent'})</span>
               </li>
             ))}
           </ul>
@@ -1288,7 +1460,7 @@ function ConditionsPanel({ game, theme }) {
                   <span className={muted ? 'text-slate-600 line-through font-semibold' : 'text-rune font-semibold'}>
                     {b.name}
                   </span>
-                  <span className={muted ? 'text-slate-600' : 'text-slate-400'}> — {b.description}</span>
+                  <span className={muted ? 'text-slate-600' : 'text-slate-400'}>: {b.description}</span>
                   {muted && <span className="text-slate-500 italic"> (muted by Wormwood)</span>}
                 </li>
               )
@@ -1405,7 +1577,7 @@ function WeaponBlock({ game, weapon, label }) {
           }`}
           aria-label={lastSlain ? `Bound to ${rankLabel(lastSlain.rank)}` : 'No binding'}
         >
-          {lastSlain ? rankLabel(lastSlain.rank) : '—'}
+          {lastSlain ? rankLabel(lastSlain.rank) : '–'}
         </div>
       </div>
     </div>
@@ -1430,7 +1602,7 @@ function WeaponPanel({ game }) {
           )}
           {hasQuartermaster && !spareWeapon && (
             <div className="text-[11px] text-slate-500 italic border-t border-stone-800 pt-3">
-              Spare slot empty — next weapon taken slings to your back.
+              Spare slot empty. Next weapon taken slings to your back.
             </div>
           )}
         </div>
@@ -1463,8 +1635,8 @@ function ForesightPanel({ game }) {
 
   const upcoming = hasCartographer ? game.deck : game.deck.slice(0, 1)
   const label = hasCartographer
-    ? `Cartographer's chart — ${game.deck.length} card${game.deck.length === 1 ? '' : 's'} remain`
-    : 'Soothsayer — next card waiting'
+    ? `Cartographer's chart: ${game.deck.length} card${game.deck.length === 1 ? '' : 's'} remain`
+    : 'Soothsayer: next card waiting'
 
   return (
     <section className="panel panel-warm p-3">
@@ -1486,15 +1658,15 @@ function OutcomeView({ game, setGame }) {
   const won = game.phase === 'victory'
   const retired = !won && game.retired
   const headline = won
-    ? 'The high gate opens.'
+    ? 'Daylight.'
     : retired
-      ? 'You walk back into the light.'
+      ? 'You stop descending.'
       : 'You fall in the dark.'
   const subtext = won
-    ? 'Seven sigils set. The eagles come at dawn.'
+    ? 'The last stair opens onto sky. You walk away from a hole in the ground.'
     : retired
-      ? 'You leave the hall behind. The runes will be cold when the next scoundrel wakes.'
-      : 'The threshold fades. The next who wakes here will walk into the same dungeon you did.'
+      ? 'The chamber stays quiet. The next who wakes here starts fresh.'
+      : 'The chamber forgets you. The next who wakes here starts the same descent.'
   return (
     <div className="text-center space-y-6 pt-6 animate-fade-in">
       <div className="space-y-3">
@@ -1544,7 +1716,7 @@ function LogPanel({ lines }) {
 }
 
 // ============================================================
-// Rules — comprehensive how-to-play, shown inline on the opening
+// Rules: comprehensive how-to-play, shown inline on the opening
 // visit and via a persistent "How to play" button
 // ============================================================
 
@@ -1570,39 +1742,39 @@ function RulesContent() {
   return (
     <div className="space-y-5 text-[13px] leading-snug">
       <p className="text-slate-300">
-        Earn <span className="text-rune font-semibold">7 sigils</span> — one per successful
-        descent — to escape the hold. Die in the dungeon and the run ends.
+        Earn <span className="text-rune font-semibold">7 sigils</span> (one per successful
+        descent) to escape the hold. Die in the dungeon and the run ends.
       </p>
 
       <RuleSection title="The deck">
-        <RuleRow term="Size">44 cards. The red face cards (J/Q/K of ♥ and ♦) are removed — no king-weapons, no queen-potions in this hold.</RuleRow>
+        <RuleRow term="Size">44 cards. The red face cards (J/Q/K of ♥ and ♦) are removed: no king-weapons, no queen-potions in this hold.</RuleRow>
         <RuleRow term="Ranks">2–10 as printed. J = 11, Q = 12, K = 13, A = 14.</RuleRow>
       </RuleSection>
 
       <RuleSection title="The cards">
         <RuleRow term="♥ Potion"><span className="text-slate-500">Heals HP = rank.</span> Only the first potion per room heals; extras are wasted.</RuleRow>
-        <RuleRow term="♦ Weapon"><span className="text-slate-500">Equips it.</span> Replaces your current weapon — the old one is gone.</RuleRow>
+        <RuleRow term="♦ Weapon"><span className="text-slate-500">Equips it.</span> Replaces your current weapon. The old one is gone.</RuleRow>
         <RuleRow term="♣ ♠ Monster"><span className="text-slate-500">Fight it.</span> Click the card to swing your weapon (when usable); the "Bare hands" button below forces a bare-handed fight.</RuleRow>
       </RuleSection>
 
-      <RuleSection title="How the room flows — three of four">
+      <RuleSection title="How the room flows: three of four">
         <p className="text-slate-300">
           A room is 4 cards. You play <span className="text-parchment font-semibold">three of them</span> (any order, any kind), then the room refills.
         </p>
         <p className="text-slate-400 text-[12px] mt-2">
-          The fourth card — the one you didn't play — <span className="text-parchment">stays for the next room</span>. Every room you see is one card you've already met plus three fresh draws. That carry-over is your only handle on dungeon order: leave the easy fight for later, leave the heavy spade for your next weapon, leave the potion to soak a bad room with.
+          The fourth card, the one you didn't play, <span className="text-parchment">stays for the next room</span>. Every room you see is one card you've already met plus three fresh draws. That carry-over is your only handle on dungeon order: leave the easy fight for later, leave the heavy spade for your next weapon, leave the potion to soak a bad room with.
         </p>
       </RuleSection>
 
       <RuleSection title="Fleeing">
         <p className="text-slate-300">
           The <span className="text-rune">Flee the room</span> button sends all 4 cards to the
-          bottom of the deck and deals a fresh four from the top. You take no damage — but
+          bottom of the deck and deals a fresh four from the top. You take no damage, but
           you'll see those cards again later, hopefully when you're better equipped.
         </p>
         <p className="text-slate-400 text-[12px] mt-2">
           Catch: you can't flee twice in a row. After a flee, you have to clear a fresh room
-          (down to one card) before the Flee button re-arms. Flee early, before a room damages you — once it has, the damage is already paid.
+          (down to one card) before the Flee button re-arms. Flee early, before a room damages you. Once it has, the damage is already paid.
         </p>
       </RuleSection>
 
@@ -1614,7 +1786,7 @@ function RulesContent() {
       <RuleSection title="Weapon binding">
         <p className="text-slate-300">
           A fresh weapon swings at any monster. After a kill, the weapon
-          <span className="text-parchment"> binds</span> — it'll only swing at monsters of equal
+          <span className="text-parchment"> binds</span>: it'll only swing at monsters of equal
           or lower rank afterwards. Above the binding, the card-click is locked: your only
           option is <span className="text-rune">"Bare hands"</span>, taking the full rank.
           Taking up a new weapon resets the binding.
@@ -1623,21 +1795,21 @@ function RulesContent() {
         <div className="mt-3 panel p-3 text-[12px] space-y-2">
           <div className="text-rune text-[10px] uppercase tracking-[0.2em]">Worked example</div>
           <div className="text-slate-300">
-            Take up a <span className="font-mono text-parchment">7♦</span>. Fresh weapon — swings at any monster.
+            Take up a <span className="font-mono text-parchment">7♦</span>. Fresh weapon, swings at any monster.
           </div>
           <div className="text-slate-300">
-            Fight a <span className="font-mono text-parchment">9♠</span>. You swing — take <span className="font-mono">9 − 7 = 2</span> damage. The weapon binds: rank <span className="font-mono">9</span> or lower from now on.
+            Fight a <span className="font-mono text-parchment">9♠</span>. You swing, take <span className="font-mono">9 − 7 = 2</span> damage. The weapon binds: rank <span className="font-mono">9</span> or lower from now on.
           </div>
           <div className="text-slate-300">
             Next room: a <span className="font-mono text-parchment">10♣</span>. Card-click is locked. Your options: Bare hands (eat 10), or take up a new weapon, or flee.
           </div>
           <div className="text-slate-300">
-            You take up an <span className="font-mono text-parchment">8♦</span>. Binding resets — fresh weapon again, swings at any monster until its first kill.
+            You take up an <span className="font-mono text-parchment">8♦</span>. Binding resets: fresh weapon again, swings at any monster until its first kill.
           </div>
         </div>
 
         <p className="text-slate-400 text-[12px] mt-2">
-          Sometimes "Bare hands" is the right call even when you could swing — eat a mid-rank
+          Sometimes "Bare hands" is the right call even when you could swing. Eat a mid-rank
           monster to keep the weapon's binding clean for the king you can see waiting in the room.
         </p>
       </RuleSection>
@@ -1647,11 +1819,11 @@ function RulesContent() {
         <RuleRow term="Lose">HP hits 0 → the run ends. Boons, Forge edits, and sigils all reset.</RuleRow>
       </RuleSection>
 
-      <RuleSection title="Between descents — the Sanctuary">
+      <RuleSection title="Between descents: the Sanctuary">
         <RuleRow term="HP">Refills to full.</RuleRow>
         <RuleRow term="Boon">Pick 1 of 3. Permanent for the run.</RuleRow>
         <RuleRow term="Theme">Next descent's rules previewed before you commit.</RuleRow>
-        <RuleRow term="Forge">At sigils 2, 4, and 6 — Strike or Transmute a card. Permanent.</RuleRow>
+        <RuleRow term="Forge">At sigils 2, 4, and 6: Strike or Transmute a card. Permanent.</RuleRow>
         <RuleRow term="Weapon">Carries over, arrives rested (binding cleared).</RuleRow>
       </RuleSection>
     </div>
@@ -1723,7 +1895,7 @@ function RulesModal({ open, onClose }) {
         </button>
         <h2 className="font-display text-rune text-2xl mb-1">{title}</h2>
         <p className="text-[12px] text-slate-500 mb-4">
-          Scoundrel — the 44-card roguelike. Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+          Scoundrel, the 44-card roguelike. Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
         </p>
         <RulesTabBar tab={tab} setTab={setTab} />
         {tab === 'rules' && <RulesContent />}
@@ -1787,10 +1959,10 @@ function BoonsGlossary() {
 }
 
 const TIER_META = {
-  opening: { label: 'Descent 1 — always', blurb: 'Friendly warm-up; first descent of every run.' },
-  1: { label: 'Tier 1 — Light', blurb: 'Single deck bias, no rule changes.' },
-  2: { label: 'Tier 2 — Heavy', blurb: 'Rule changes, harder bias.' },
-  3: { label: 'Tier 3 — Spire', blurb: 'Paired effects, weirder rules.' },
+  opening: { label: 'Descent 1 (always)', blurb: 'Friendly warm-up; first descent of every run.' },
+  1: { label: 'Tier 1: Light', blurb: 'Single deck bias, no rule changes.' },
+  2: { label: 'Tier 2: Heavy', blurb: 'Rule changes, harder bias.' },
+  3: { label: 'Tier 3: Spire', blurb: 'Paired effects, weirder rules.' },
 }
 
 function ThemesGlossary() {
@@ -1802,7 +1974,7 @@ function ThemesGlossary() {
   return (
     <div className="space-y-5 text-[13px] leading-snug">
       <p className="text-slate-400">
-        One Theme per descent — a deck or rule mutation just for that descent.
+        One Theme per descent: a deck or rule mutation just for that descent.
         You see it before you descend, so spend your Boon as counterplay.
       </p>
 

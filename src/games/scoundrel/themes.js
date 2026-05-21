@@ -275,7 +275,7 @@ const TIER_1_IDS = Object.values(THEMES).filter(t => t.tier === 1).map(t => t.id
 const TIER_2_IDS = Object.values(THEMES).filter(t => t.tier === 2).map(t => t.id)
 const TIER_3_IDS = Object.values(THEMES).filter(t => t.tier === 3).map(t => t.id)
 
-// Each band of descents draws exclusively from its own tier — higher tiers
+// Each band of descents draws exclusively from its own tier. Higher tiers
 // crowd lower ones out as the dungeon deepens:
 // - 0–2 sigils → Tier 1 only (descents 2–3)
 // - 3–4 sigils → Tier 2 only (descents 4–5)
