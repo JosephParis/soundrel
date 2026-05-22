@@ -70,7 +70,7 @@ export const THEMES = {
 
   the_armory: {
     id: 'the_armory',
-    name: 'The Armory',
+    name: 'The Foundry',
     description: 'Adds 3 low-rank weapons (rank 2–5) to the deck.',
     tier: 1,
     applyToDeck(deck, rng) {
@@ -93,7 +93,7 @@ export const THEMES = {
 
   the_apothecary: {
     id: 'the_apothecary',
-    name: 'The Apothecary',
+    name: 'The Stillery',
     description: 'Adds 2 random potions to the deck. The second potion of any room damages you for its rank instead of healing.',
     tier: 1,
     secondPotionDamages: true,
@@ -125,7 +125,7 @@ export const THEMES = {
 
   sharpened_fangs: {
     id: 'sharpened_fangs',
-    name: 'Sharpened Fangs',
+    name: 'The Den',
     description: 'Every monster acts as 1 rank higher this descent.',
     tier: 1,
     monsterRankBonus: 1,
@@ -133,7 +133,7 @@ export const THEMES = {
 
   rusty_edge: {
     id: 'rusty_edge',
-    name: 'Rusty Edge',
+    name: 'The Brine',
     description: 'Weapons taken up this descent enter at 1 rank lower (minimum 2).',
     tier: 1,
     weaponRankModifier: -1,
@@ -141,7 +141,7 @@ export const THEMES = {
 
   bitter_brew: {
     id: 'bitter_brew',
-    name: 'Bitter Brew',
+    name: 'The Cellar',
     description: 'Potions heal only half their rank, rounded down.',
     tier: 1,
     potionHealHalf: true,
@@ -175,7 +175,7 @@ export const THEMES = {
 
   iron_bones: {
     id: 'iron_bones',
-    name: 'Iron Bones',
+    name: 'The Catacombs',
     description: 'You cannot fight bare-handed while a usable weapon is equipped.',
     tier: 2,
     ironBones: true,
@@ -183,7 +183,7 @@ export const THEMES = {
 
   cracked_blade: {
     id: 'cracked_blade',
-    name: 'Cracked Blade',
+    name: 'The Anvil',
     description: 'Your weapon is no longer bound by rank, but it shatters if it slays a monster of higher rank than itself.',
     tier: 2,
     crackedBlade: true,
@@ -199,7 +199,7 @@ export const THEMES = {
 
   tithe: {
     id: 'tithe',
-    name: 'Tithe',
+    name: 'The Toll',
     description: 'Lose 1 HP each time a room is entered.',
     tier: 2,
     tithe: 1,
@@ -231,7 +231,7 @@ export const THEMES = {
 
   the_reliquary: {
     id: 'the_reliquary',
-    name: 'The Reliquary',
+    name: 'The Vault',
     description: 'Adds 4 aces to the deck.',
     tier: 2,
     applyToDeck(deck, rng) {
