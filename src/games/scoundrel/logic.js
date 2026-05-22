@@ -981,6 +981,19 @@ export function closeForgeView(state) {
   return { ...state, forgeView: null }
 }
 
+// Skip the forge for this visit without applying any edit. Marks the
+// forge as used so the sequencing in the UI knows the player is done
+// with this stage.
+export function skipForge(state) {
+  if (state.phase !== 'sanctuary' || !state.forgeOpen || state.forgeUsed) return state
+  return {
+    ...state,
+    forgeUsed: true,
+    forgeView: null,
+    log: [...state.log, 'You step away from the forge.'],
+  }
+}
+
 // Strike's offering may match the monster's rank or fall up to this many
 // ranks below it. A lighter blade can still balance the carving, within
 // reason. K and A monsters are effectively immune since no offering reaches

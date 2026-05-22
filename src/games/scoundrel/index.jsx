@@ -9,12 +9,14 @@ import {
   pickBoon,
   openForgeAction,
   closeForgeView,
+  skipForge,
   applyStrike,
   applyTransmute,
   applyHeft,
   getStrikeOptions,
   getTransmuteOptions,
   getHeftOptions,
+  computeCurrentDeck,
   HEFT_BONUS,
   STRIKE_OFFERING_RANGE,
   suitColor,
@@ -135,24 +137,26 @@ export default function Scoundrel() {
   const [game, setGame] = useState(() => loadSavedGame() || createRun())
   const [rulesOpen, setRulesOpen] = useState(false)
   const [retireOpen, setRetireOpen] = useState(false)
+  const [creditsOpen, setCreditsOpen] = useState(false)
+  const [devOpen, setDevOpen] = useState(false)
 
   useEffect(() => {
     saveGame(game)
   }, [game])
 
   useEffect(() => {
-    if (!rulesOpen) return
-    const onKey = (e) => { if (e.key === 'Escape') setRulesOpen(false) }
+    const anyOpen = rulesOpen || retireOpen || creditsOpen || devOpen
+    if (!anyOpen) return
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return
+      if (devOpen) setDevOpen(false)
+      else if (creditsOpen) setCreditsOpen(false)
+      else if (retireOpen) setRetireOpen(false)
+      else if (rulesOpen) setRulesOpen(false)
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [rulesOpen])
-
-  useEffect(() => {
-    if (!retireOpen) return
-    const onKey = (e) => { if (e.key === 'Escape') setRetireOpen(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [retireOpen])
+  }, [rulesOpen, retireOpen, creditsOpen, devOpen])
 
   const confirmRetire = () => {
     setGame(g => retireRun(g))
@@ -165,6 +169,8 @@ export default function Scoundrel() {
         game={game}
         onOpenRules={() => setRulesOpen(true)}
         onRetire={() => setRetireOpen(true)}
+        onOpenCredits={() => setCreditsOpen(true)}
+        onOpenDev={() => setDevOpen(true)}
       />
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <RetireModal
@@ -174,7 +180,9 @@ export default function Scoundrel() {
         onConfirm={confirmRetire}
         onCancel={() => setRetireOpen(false)}
       />
-      <main className="flex-1 w-full max-w-4xl px-4 sm:px-6 pt-20 sm:pt-24 pb-16">
+      <CreditsModal open={creditsOpen} onClose={() => setCreditsOpen(false)} />
+      <DevModal open={devOpen} onClose={() => setDevOpen(false)} game={game} setGame={setGame} />
+      <main className="flex-1 w-full max-w-7xl px-4 sm:px-6 pt-16 sm:pt-20 pb-8">
         {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} />}
         {game.phase === 'descent' && <DescentView game={game} setGame={setGame} />}
         {(game.phase === 'gameover' || game.phase === 'victory') && (
@@ -189,7 +197,7 @@ export default function Scoundrel() {
 // Top bar (persistent across phases)
 // ============================================================
 
-function TopBar({ game, onOpenRules, onRetire }) {
+function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev }) {
   const runActive = game.phase === 'sanctuary' || game.phase === 'descent'
   return (
     <header className="fixed top-0 left-0 right-0 z-30 border-b border-stone-800/80 bg-dungeon/85 backdrop-blur-md flex justify-center">
@@ -201,7 +209,7 @@ function TopBar({ game, onOpenRules, onRetire }) {
           <span className="hidden sm:block text-stone-700">|</span>
           <SigilTracker count={game.sigilsEarned} target={game.sigilTarget} />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {runActive && (
             <button
               onClick={onRetire}
@@ -215,6 +223,22 @@ function TopBar({ game, onOpenRules, onRetire }) {
             className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-xs sm:text-sm font-medium transition"
           >
             How to play
+          </button>
+          <button
+            onClick={onOpenCredits}
+            aria-label="Credits"
+            title="Credits"
+            className="px-2.5 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-400 hover:text-rune text-xs sm:text-sm font-medium transition"
+          >
+            ✦
+          </button>
+          <button
+            onClick={onOpenDev}
+            aria-label="Dev overrides"
+            title="Dev overrides"
+            className="px-2.5 py-1.5 rounded-md border border-stone-700 hover:border-amber-600/60 text-stone-500 hover:text-amber-300/80 text-xs sm:text-sm font-medium transition"
+          >
+            ⚙
           </button>
         </div>
       </div>
@@ -294,96 +318,107 @@ function SigilTracker({ count, target }) {
 // ============================================================
 
 function SanctuaryView({ game, setGame }) {
-  const theme = getTheme(game.nextTheme)
-  const canDescend = game.boonChosen && game.forgeView === null
   const isOpeningVisit = game.sigilsEarned === 0
   const needsBoon = !isOpeningVisit && !game.boonChosen && game.boonOffers.length > 0
-  const forgeAvailable = game.forgeOpen && !game.forgeUsed && !game.forgeView
-  const [creditsOpen, setCreditsOpen] = useState(false)
+  const forgePending = game.forgeOpen && !game.forgeUsed
+  // Sequence is boon → forge → descend. Forge prompt only appears
+  // once the boon is picked. Descend only appears once both stages
+  // are resolved (forge used, skipped, or never available).
+  const showForgePrompt = forgePending && !needsBoon && !game.forgeView
+  const showDescend = !needsBoon && !showForgePrompt && game.forgeView === null
+  const [deckOpen, setDeckOpen] = useState(false)
 
   useEffect(() => {
-    if (!creditsOpen) return
-    const onKey = (e) => { if (e.key === 'Escape') setCreditsOpen(false) }
+    if (!deckOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setDeckOpen(false) }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [creditsOpen])
+  }, [deckOpen])
+
+  // Exactly one panel renders in the action slot (or none, when the
+  // player is idle and ready to descend).
+  let actionSlot = null
+  if (isOpeningVisit) {
+    actionSlot = <RulesInlinePanel />
+  } else if (needsBoon) {
+    actionSlot = (
+      <BoonOfferPanel
+        offers={game.boonOffers}
+        onPick={(id) => setGame(g => pickBoon(g, id))}
+        forgeAfter={forgePending}
+      />
+    )
+  } else if (game.forgeView === 'strike') {
+    actionSlot = (
+      <StrikeView
+        game={game}
+        onConfirm={(mid, oid) => setGame(g => applyStrike(g, mid, oid))}
+        onCancel={() => setGame(g => closeForgeView(g))}
+      />
+    )
+  } else if (game.forgeView === 'transmute') {
+    actionSlot = (
+      <TransmuteView
+        game={game}
+        onConfirm={(cid, suit) => setGame(g => applyTransmute(g, cid, suit))}
+        onCancel={() => setGame(g => closeForgeView(g))}
+      />
+    )
+  } else if (game.forgeView === 'heft') {
+    actionSlot = (
+      <HeftView
+        game={game}
+        onConfirm={(cid) => setGame(g => applyHeft(g, cid))}
+        onCancel={() => setGame(g => closeForgeView(g))}
+      />
+    )
+  } else if (showForgePrompt) {
+    actionSlot = (
+      <ForgePromptPanel
+        onStrike={() => setGame(g => openForgeAction(g, 'strike'))}
+        onTransmute={() => setGame(g => openForgeAction(g, 'transmute'))}
+        onHeft={() => setGame(g => openForgeAction(g, 'heft'))}
+        onSkip={() => setGame(g => skipForge(g))}
+      />
+    )
+  } else {
+    actionSlot = <LoadoutPanel game={game} />
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <SanctuaryHero isOpeningVisit={isOpeningVisit} />
-
-      {isOpeningVisit && <RulesInlinePanel />}
-
-      {needsBoon && (
-        <BoonOfferPanel
-          offers={game.boonOffers}
-          onPick={(id) => setGame(g => pickBoon(g, id))}
-        />
-      )}
-
-      {forgeAvailable && (
-        <ForgePromptPanel
-          onStrike={() => setGame(g => openForgeAction(g, 'strike'))}
-          onTransmute={() => setGame(g => openForgeAction(g, 'transmute'))}
-          onHeft={() => setGame(g => openForgeAction(g, 'heft'))}
-        />
-      )}
-
-      {game.forgeView === 'strike' && (
-        <StrikeView
-          game={game}
-          onConfirm={(mid, oid) => setGame(g => applyStrike(g, mid, oid))}
-          onCancel={() => setGame(g => closeForgeView(g))}
-        />
-      )}
-
-      {game.forgeView === 'transmute' && (
-        <TransmuteView
-          game={game}
-          onConfirm={(cid, suit) => setGame(g => applyTransmute(g, cid, suit))}
-          onCancel={() => setGame(g => closeForgeView(g))}
-        />
-      )}
-
-      {game.forgeView === 'heft' && (
-        <HeftView
-          game={game}
-          onConfirm={(cid) => setGame(g => applyHeft(g, cid))}
-          onCancel={() => setGame(g => closeForgeView(g))}
-        />
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {theme && <NextThemePanel theme={theme} childThemeIds={game.nextThemeChildren} />}
+    <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 animate-fade-in items-start">
+      <PhaseRail
+        title="Sanctuary"
+        subtitle={isOpeningVisit
+          ? 'You wake in a quiet chamber. The only way out leads down.'
+          : 'The chamber is still. Below, the dark waits.'}
+      >
+        <div className="panel p-3">
+          <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Lifeblood</div>
+          <div className="font-mono text-parchment text-base">
+            {game.maxHp}<span className="text-slate-500 text-sm">/{game.maxHp}</span>
+            <span className="ml-2 text-[10px] uppercase tracking-widest text-rune/70">Rested</span>
+          </div>
+        </div>
         <RunStatePanel game={game} />
+        <DeckPeekButton game={game} onClick={() => setDeckOpen(true)} />
+      </PhaseRail>
+
+      <DeckModal open={deckOpen} onClose={() => setDeckOpen(false)} game={game} />
+
+      <div className="space-y-5 min-w-0">
+        {actionSlot}
+
+        {showDescend && (
+          <DescendAction
+            onDescend={() => setGame(g => descend(g))}
+            disabled={false}
+            reason={null}
+          />
+        )}
+
+        <LogPanel lines={game.log} collapsible />
       </div>
-
-      <DescendAction
-        onDescend={() => setGame(g => descend(g))}
-        disabled={!canDescend}
-        reason={
-          !game.boonChosen
-            ? 'Pick a Boon first.'
-            : game.forgeView !== null
-              ? 'Close the Forge first.'
-              : null
-        }
-      />
-
-      <LogPanel lines={game.log} />
-
-      <div className="text-center pt-2">
-        <button
-          onClick={() => setCreditsOpen(true)}
-          className="text-[10px] uppercase tracking-widest text-stone-600 hover:text-rune transition"
-        >
-          ✦ Credits
-        </button>
-      </div>
-
-      <CreditsModal open={creditsOpen} onClose={() => setCreditsOpen(false)} />
-
-      <DevPanel game={game} setGame={setGame} />
     </div>
   )
 }
@@ -438,17 +473,29 @@ function CreditsModal({ open, onClose }) {
   )
 }
 
-function DevPanel({ game, setGame }) {
-  const [open, setOpen] = useState(false)
-  const [sigils, setSigils] = useState(game.sigilsEarned)
-  const [themeId, setThemeId] = useState(game.nextTheme || 'the_quiet')
+function DevModal({ open, onClose, game, setGame }) {
   const tier2Ids = useMemo(
     () => Object.values(THEMES).filter(t => t.tier === 2).map(t => t.id),
     []
   )
+  const [sigils, setSigils] = useState(game.sigilsEarned)
+  const [themeId, setThemeId] = useState(game.nextTheme || 'the_quiet')
   const [child1, setChild1] = useState(() => game.nextThemeChildren?.[0] || tier2Ids[0] || '')
   const [child2, setChild2] = useState(() => game.nextThemeChildren?.[1] || tier2Ids[1] || '')
   const [selectedBoons, setSelectedBoons] = useState(() => new Set(game.boons))
+
+  // When the modal re-opens, seed local form state from current game state
+  // so it reflects whatever the player just did.
+  useEffect(() => {
+    if (!open) return
+    setSigils(game.sigilsEarned)
+    setThemeId(game.nextTheme || 'the_quiet')
+    setChild1(game.nextThemeChildren?.[0] || tier2Ids[0] || '')
+    setChild2(game.nextThemeChildren?.[1] || tier2Ids[1] || '')
+    setSelectedBoons(new Set(game.boons))
+  }, [open, game.sigilsEarned, game.nextTheme, game.nextThemeChildren, game.boons, tier2Ids])
+
+  if (!open) return null
 
   const themeObj = getTheme(themeId)
   const isCompound = !!themeObj?.compound
@@ -480,150 +527,282 @@ function DevPanel({ game, setGame }) {
       mutedBoon: null,
       log: [...g.log, `[dev] overrides applied: sigils ${sigils}, theme "${themeObj?.name || themeId}".`],
     }))
-  }
-
-  if (!open) {
-    return (
-      <div className="text-center pt-4">
-        <button
-          onClick={() => setOpen(true)}
-          className="text-[10px] uppercase tracking-widest text-stone-600 hover:text-amber-300/80 transition"
-        >
-          ⚙ Dev
-        </button>
-      </div>
-    )
+    onClose()
   }
 
   return (
-    <section className="panel p-4 border border-amber-900/40 space-y-3 text-[12px]">
-      <div className="flex justify-between items-baseline">
-        <div className="text-[10px] uppercase tracking-widest text-amber-200/70">Dev overrides</div>
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-w-md w-full p-6 my-4 sm:my-auto relative shadow-2xl border border-amber-900/40 space-y-3 text-[12px]"
+        onClick={e => e.stopPropagation()}
+      >
         <button
-          onClick={() => setOpen(false)}
-          className="text-[10px] uppercase tracking-wider text-slate-500 hover:text-parchment"
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close dev overrides"
         >
-          Close
+          ×
+        </button>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">Dev overrides</div>
+        <p className="text-[11px] text-slate-500 -mt-1">
+          Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+        </p>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Sigils earned</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={maxSigils}
+              value={sigils}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                setSigils(Math.max(0, Math.min(maxSigils, Number.isFinite(n) ? n : 0)))
+              }}
+              className="w-16 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment font-mono"
+            />
+            <span className="text-slate-500">/ {game.sigilTarget}</span>
+            {FORGE_SIGILS.has(sigils) && (
+              <span className="text-amber-300/70 text-[10px] uppercase tracking-wider">Forge opens</span>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Next theme</div>
+          <select
+            value={themeId}
+            onChange={(e) => setThemeId(e.target.value)}
+            className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
+          >
+            {Object.values(THEMES).map(t => {
+              const tier = t.tier ? `T${t.tier}` : 'intro'
+              return <option key={t.id} value={t.id}>{t.name} ({tier})</option>
+            })}
+          </select>
+        </div>
+
+        {isCompound && (
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: 'Child A', value: child1, set: setChild1 },
+              { label: 'Child B', value: child2, set: setChild2 },
+            ].map(({ label, value, set }) => (
+              <div key={label}>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{label} (T2)</div>
+                <select
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
+                >
+                  {tier2Ids.map(id => (
+                    <option key={id} value={id}>{THEMES[id].name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Boons</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {Object.values(BOONS).map(b => (
+              <label key={b.id} className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-parchment">
+                <input
+                  type="checkbox"
+                  checked={selectedBoons.has(b.id)}
+                  onChange={() => toggleBoon(b.id)}
+                  className="accent-amber-500"
+                />
+                <span>{b.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={apply}
+          className="w-full px-3 py-2 rounded-md bg-amber-900/40 hover:bg-amber-900/60 text-amber-100 text-[11px] uppercase tracking-widest border border-amber-700/50 transition"
+        >
+          Apply overrides
         </button>
       </div>
+    </div>
+  )
+}
 
+// Left-rail header used by both Sanctuary and Descent. Holds the
+// phase title (large Cinzel), optional subtitle/children themes, and
+// a status slot (HP bar in descent, "Rested" badge in sanctuary).
+// On desktop it sticks below the top bar; on mobile it sits as a
+// normal block at the top of the column flow.
+function PhaseRail({ title, subtitle, children }) {
+  return (
+    <aside className="md:sticky md:top-20 md:self-start space-y-4">
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Sigils earned</div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            max={maxSigils}
-            value={sigils}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              setSigils(Math.max(0, Math.min(maxSigils, Number.isFinite(n) ? n : 0)))
-            }}
-            className="w-16 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment font-mono"
-          />
-          <span className="text-slate-500">/ {game.sigilTarget}</span>
-          {FORGE_SIGILS.has(sigils) && (
-            <span className="text-amber-300/70 text-[10px] uppercase tracking-wider">Forge opens</span>
+        <h1 className="font-display text-3xl md:text-4xl text-rune leading-tight">{title}</h1>
+        {subtitle && (
+          <p className="mt-2 text-[12px] text-slate-400 leading-snug">{subtitle}</p>
+        )}
+        <div className="rune-divider mt-3 text-rune/30 text-[10px]">
+          <span>✦</span>
+        </div>
+      </div>
+      {children}
+    </aside>
+  )
+}
+
+// Right-rail sticky sidebar. Children stack vertically; the last
+// child that is given `flex-1 min-h-0` (typically the LogPanel)
+// fills remaining viewport height and scrolls internally.
+function SideRail({ children }) {
+  return (
+    <aside className="md:sticky md:top-20 md:self-start md:h-[calc(100vh-6rem)] flex flex-col gap-4 min-h-0">
+      {children}
+    </aside>
+  )
+}
+
+// Compact panel-style button beneath RunStatePanel that opens the
+// DeckModal. Shows current card count so the player can glance the
+// number even without opening the full view.
+function DeckPeekButton({ game, onClick }) {
+  const count = useMemo(() => computeCurrentDeck(game).length, [game])
+  return (
+    <button
+      onClick={onClick}
+      className="panel p-3 w-full text-left hover:border-rune/40 transition flex items-baseline justify-between"
+    >
+      <span className="text-[10px] uppercase tracking-widest text-slate-500">View deck</span>
+      <span className="text-[11px] text-slate-500">
+        <span className="font-mono text-slate-300">{count}</span> cards
+      </span>
+    </button>
+  )
+}
+
+// Modal preview of the current deck. Renders the suit fan read-only
+// so the player can audit composition mid-sanctuary (boon picking,
+// forge planning) without leaving their flow.
+function DeckModal({ open, onClose, game }) {
+  const deck = useMemo(() => (open ? computeCurrentDeck(game) : []), [open, game])
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-w-3xl w-full p-6 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close deck view"
+        >
+          ×
+        </button>
+        <div className="mb-4">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">The deck</div>
+          <h2 className="font-display text-rune text-2xl mt-1">
+            {deck.length} <span className="text-slate-400 text-base">cards</span>
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-1">
+            Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+          </p>
+        </div>
+        <CardSuitFan cards={deck} readOnly />
+      </div>
+    </div>
+  )
+}
+
+// Idle review panel shown in sanctuary once the player has resolved
+// boon and forge. Surfaces the full current deck (per-suit fan,
+// read-only), any carried weapon, and boons with descriptions so the
+// player can audit their build before committing to the descent.
+// Layout: deck takes the main horizontal area; weapons + boons stack
+// in a sidebar beside it so the panel uses width instead of growing
+// tall.
+function LoadoutPanel({ game }) {
+  const deck = useMemo(() => computeCurrentDeck(game), [game])
+  const { carriedWeapon, carriedSpareWeapon, boons } = game
+  const showWeapons = carriedWeapon || carriedSpareWeapon
+  const showBoons = boons.length > 0
+  const hasSidebar = showWeapons || showBoons
+  return (
+    <section className="panel p-5">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+        <h2 className="font-display text-rune text-base leading-tight">Ready to descend</h2>
+        <div className="text-[10px] uppercase tracking-widest text-slate-500">
+          Deck · <span className="font-mono text-parchment">{deck.length}</span> cards
+          {showBoons && (
+            <>
+              <span className="text-stone-700 mx-2">|</span>
+              <span className="font-mono text-parchment">{boons.length}</span>{' '}
+              {boons.length === 1 ? 'boon' : 'boons'}
+            </>
           )}
         </div>
       </div>
 
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Next theme</div>
-        <select
-          value={themeId}
-          onChange={(e) => setThemeId(e.target.value)}
-          className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
-        >
-          {Object.values(THEMES).map(t => {
-            const tier = t.tier ? `T${t.tier}` : 'intro'
-            return <option key={t.id} value={t.id}>{t.name} ({tier})</option>
-          })}
-        </select>
-      </div>
-
-      {isCompound && (
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: 'Child A', value: child1, set: setChild1 },
-            { label: 'Child B', value: child2, set: setChild2 },
-          ].map(({ label, value, set }) => (
-            <div key={label}>
-              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{label} (T2)</div>
-              <select
-                value={value}
-                onChange={(e) => set(e.target.value)}
-                className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
-              >
-                {tier2Ids.map(id => (
-                  <option key={id} value={id}>{THEMES[id].name}</option>
-                ))}
-              </select>
-            </div>
-          ))}
+      <div className={hasSidebar ? 'grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] gap-x-5 gap-y-4' : ''}>
+        <div className="min-w-0">
+          <CardSuitFan cards={deck} readOnly />
         </div>
-      )}
 
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Boons</div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-          {Object.values(BOONS).map(b => (
-            <label key={b.id} className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-parchment">
-              <input
-                type="checkbox"
-                checked={selectedBoons.has(b.id)}
-                onChange={() => toggleBoon(b.id)}
-                className="accent-amber-500"
-              />
-              <span>{b.name}</span>
-            </label>
-          ))}
-        </div>
+        {hasSidebar && (
+          <div className="space-y-4 md:border-l md:border-stone-800 md:pl-5">
+            {showWeapons && (
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">
+                  {carriedSpareWeapon ? 'Weapons' : 'Weapon'}
+                </div>
+                <div className="space-y-3">
+                  {carriedWeapon && (
+                    <WeaponBlock
+                      game={game}
+                      weapon={carriedWeapon}
+                      label={carriedSpareWeapon ? 'Drawn' : null}
+                    />
+                  )}
+                  {carriedSpareWeapon && (
+                    <div className={carriedWeapon ? 'border-t border-stone-800 pt-3' : ''}>
+                      <WeaponBlock game={game} weapon={carriedSpareWeapon} label="Spare" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {showBoons && (
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Boons</div>
+                <ul className="space-y-2">
+                  {boons.map(id => {
+                    const b = BOONS[id]
+                    if (!b) return null
+                    return (
+                      <li key={id} className="text-[12px] leading-snug">
+                        <div className="text-rune font-semibold">{b.name}</div>
+                        <div className="text-slate-400">{b.description}</div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      <button
-        onClick={apply}
-        className="w-full px-3 py-2 rounded-md bg-amber-900/40 hover:bg-amber-900/60 text-amber-100 text-[11px] uppercase tracking-widest border border-amber-700/50 transition"
-      >
-        Apply overrides
-      </button>
     </section>
-  )
-}
-
-function SanctuaryHero({ isOpeningVisit }) {
-  return (
-    <header className="text-center pt-2 pb-4">
-      <h1 className="font-display text-3xl sm:text-4xl text-rune">Sanctuary</h1>
-      <div className="rune-divider mt-3 mb-2 mx-auto max-w-xs text-rune/40 text-[10px]">
-        <span>✦</span>
-      </div>
-      <p className="text-sm text-slate-400 max-w-xl mx-auto">
-        {isOpeningVisit
-          ? 'You wake in a quiet chamber. The only way out leads down.'
-          : 'The chamber is still. Below, the dark waits.'}
-      </p>
-    </header>
-  )
-}
-
-function NextThemePanel({ theme, childThemeIds }) {
-  const childThemes = (childThemeIds || []).map(id => getTheme(id)).filter(Boolean)
-  return (
-    <div className="panel p-4">
-      <div className="font-display text-rune text-lg mb-1">{theme.name}</div>
-      <div className="text-[13px] text-slate-300 leading-snug">{theme.description}</div>
-      {childThemes.length > 0 && (
-        <ul className="mt-2 pt-2 border-t border-stone-800 space-y-1">
-          {childThemes.map(c => (
-            <li key={c.id} className="text-[12px] leading-snug">
-              <span className="text-rune font-semibold">{c.name}</span>
-              <span className="text-slate-400">: {c.description}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   )
 }
 
@@ -646,7 +825,7 @@ function ConfirmButton({ onClick, disabled, label }) {
   )
 }
 
-function BoonOfferPanel({ offers, onPick }) {
+function BoonOfferPanel({ offers, onPick, forgeAfter = false }) {
   const [selectedId, setSelectedId] = useState(null)
   const selectedBoon = selectedId ? getBoon(selectedId) : null
   return (
@@ -654,7 +833,13 @@ function BoonOfferPanel({ offers, onPick }) {
       <div className="text-center mb-5">
         <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Something comes to you</div>
         <h2 className="font-display text-rune text-xl mt-1">Pick one Boon</h2>
-        <p className="text-[12px] text-slate-500 mt-1">A tool, a memory, a way of moving. Permanent for the rest of the run.</p>
+        {forgeAfter && (
+          <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-amber-300/80 border border-amber-700/50 rounded-full px-3 py-1">
+            <span className="text-slate-500">Next</span>
+            <span aria-hidden="true">▸</span>
+            <span>Forge</span>
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-items-center">
         {offers.map(id => {
@@ -685,7 +870,7 @@ function BoonCard({ boon, selected, onPick }) {
   return (
     <button
       onClick={onPick}
-      className={`group aspect-[2/3] w-full max-w-[230px] text-left rounded-lg border bg-gradient-to-b p-5 hover:-translate-y-1 transition-all duration-200 shadow-md flex flex-col relative overflow-hidden ${
+      className={`group aspect-[2/3] w-full max-w-[240px] text-left rounded-lg border bg-gradient-to-b p-5 hover:-translate-y-1 transition-all duration-200 shadow-md flex flex-col relative overflow-hidden ${
         selected
           ? 'border-rune from-stone-800 to-stone-900 shadow-[0_0_24px_-8px_rgba(251,191,36,0.6)]'
           : 'border-stone-700 from-stone-900 to-stone-950 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)]'
@@ -711,7 +896,7 @@ function BoonCard({ boon, selected, onPick }) {
   )
 }
 
-function ForgePromptPanel({ onStrike, onTransmute, onHeft }) {
+function ForgePromptPanel({ onStrike, onTransmute, onHeft, onSkip }) {
   const [selected, setSelected] = useState(null)
   const options = [
     {
@@ -754,12 +939,18 @@ function ForgePromptPanel({ onStrike, onTransmute, onHeft }) {
           />
         ))}
       </div>
-      <div className="flex justify-center mt-5">
+      <div className="flex justify-center items-center gap-3 mt-5 flex-wrap">
         <ConfirmButton
           onClick={() => selectedOption?.open()}
           disabled={!selectedOption}
           label={selectedOption ? `Open ${selectedOption.name}` : 'Pick an action above'}
         />
+        <button
+          onClick={onSkip}
+          className="text-[11px] uppercase tracking-widest text-slate-500 hover:text-parchment transition px-3 py-2"
+        >
+          Step away
+        </button>
       </div>
     </section>
   )
@@ -993,14 +1184,15 @@ function suitName(suit) {
   return 'spade monster'
 }
 
-// Compact picker: cards group into one column per suit, sorted by
-// rank ascending. Within a column they cascade downward so only the
-// top strip (rank + suit glyph) of each prior card is exposed. Hover
-// or selection slides the card right and jumps it to the top of the
-// stack so the full card is visible.
+// Compact picker: cards group into one row per suit, sorted by rank,
+// overlapping horizontally so only the top-left rank+suit corner of
+// each prior card is exposed. Hover, focus, or selection lifts the
+// card above its neighbors. Pass `readOnly` to render the fan for
+// display only (no click handler, no selected state) — hover-lift
+// still works so the player can peek at any card.
 const SUIT_FAN_ORDER = [HEART, DIAMOND, CLUB, SPADE]
 
-function CardSuitFan({ cards, selected, onPick }) {
+function CardSuitFan({ cards, selected, onPick, readOnly = false }) {
   const bySuit = { [HEART]: [], [DIAMOND]: [], [CLUB]: [], [SPADE]: [] }
   for (const c of cards) {
     if (bySuit[c.suit]) bySuit[c.suit].push(c)
@@ -1012,46 +1204,39 @@ function CardSuitFan({ cards, selected, onPick }) {
   if (presentSuits.length === 0) return null
 
   return (
-    <div className="flex justify-center items-start gap-4 sm:gap-6 flex-wrap">
+    <div className="space-y-1.5">
       {presentSuits.map(suit => (
-        <CardSuitFanColumn
+        <CardSuitFanRow
           key={suit}
           suit={suit}
           cards={bySuit[suit]}
           selected={selected}
           onPick={onPick}
+          readOnly={readOnly}
         />
       ))}
     </div>
   )
 }
 
-function CardSuitFanColumn({ suit, cards, selected, onPick }) {
+function CardSuitFanRow({ suit, cards, selected, onPick, readOnly = false }) {
   const isRed = suit === HEART || suit === DIAMOND
   return (
-    <div className="flex flex-col items-center">
-      <div className={`mb-1.5 text-base leading-none ${isRed ? 'text-blood' : 'text-parchment'}`}>
+    <div className="flex items-start">
+      <div className={`w-6 shrink-0 pt-3 text-center text-base leading-none ${isRed ? 'text-blood' : 'text-parchment'}`}>
         {SUIT_GLYPH[suit]}
       </div>
-      <div className="flex flex-col items-start pr-3 pb-2">
+      <div className="flex flex-1 pl-2 pt-2 pb-3 overflow-x-auto">
         {cards.map((c, i) => {
-          const isSelected = selected === c.id
-          return (
-            <button
-              key={c.id}
-              onClick={() => onPick(c)}
-              data-selected={isSelected ? 'true' : undefined}
-              style={{
-                marginTop: i === 0 ? 0 : '-3.25rem',
-                '--fan-z': i + 1,
-              }}
-              className={`card-fan-item relative aspect-[2/3] w-14 sm:w-16 shrink-0 rounded border-2 p-1.5 flex flex-col justify-between text-left ${
-                isSelected
-                  ? 'border-rune bg-stone-700'
-                  : `${cardBorderTone(c)} bg-stone-900 hover:bg-stone-800 hover:border-rune/60`
-              }`}
-            >
-              <div className={`text-sm font-bold leading-none ${isRed ? 'text-blood' : 'text-parchment'}`}>
+          const isSelected = !readOnly && selected === c.id
+          const baseClass = `card-fan-item relative aspect-[2/3] w-12 sm:w-14 shrink-0 rounded border-2 p-1 flex flex-col justify-between text-left ${
+            isSelected
+              ? 'border-rune bg-stone-700'
+              : `${cardBorderTone(c)} bg-stone-900${readOnly ? '' : ' hover:bg-stone-800 hover:border-rune/60'}`
+          }`
+          const inner = (
+            <>
+              <div className={`text-xs sm:text-sm font-bold leading-none ${isRed ? 'text-blood' : 'text-parchment'}`}>
                 {rankLabel(c.rank)}{SUIT_GLYPH[c.suit]}
               </div>
               {(c.transmuted || c.hefted) && (
@@ -1064,6 +1249,28 @@ function CardSuitFanColumn({ suit, cards, selected, onPick }) {
                   )}
                 </div>
               )}
+            </>
+          )
+          const style = {
+            marginLeft: i === 0 ? 0 : '-1.6rem',
+            '--fan-z': i + 1,
+          }
+          if (readOnly) {
+            return (
+              <div key={c.id} style={style} className={`${baseClass} cursor-default`}>
+                {inner}
+              </div>
+            )
+          }
+          return (
+            <button
+              key={c.id}
+              onClick={() => onPick(c)}
+              data-selected={isSelected ? 'true' : undefined}
+              style={style}
+              className={baseClass}
+            >
+              {inner}
             </button>
           )
         })}
@@ -1089,7 +1296,7 @@ function RunStatePanel({ game }) {
     return (
       <div className="panel p-4">
         <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">What you carry</div>
-        <div className="text-[13px] text-slate-500 italic">Nothing yet. Survive a descent to earn your first memory.</div>
+        <div className="text-[13px] text-slate-500 italic">Nothing yet. Survive a descent to earn your first boon.</div>
       </div>
     )
   }
@@ -1150,11 +1357,11 @@ function RunStatePanel({ game }) {
 
 function DescendAction({ onDescend, disabled, reason }) {
   return (
-    <div className="flex flex-col items-center gap-3 py-6">
+    <div className="flex flex-col items-center gap-2">
       <button
         onClick={onDescend}
         disabled={disabled}
-        className={`px-16 sm:px-24 py-5 sm:py-6 rounded-md font-display text-2xl sm:text-3xl tracking-[0.2em] transition
+        className={`w-full max-w-sm px-10 py-3 rounded-md font-display text-xl tracking-[0.2em] transition
           ${disabled
             ? 'bg-stone-800 text-stone-600 border border-stone-700 cursor-not-allowed'
             : 'bg-gradient-to-b from-red-700 to-red-900 text-parchment border border-red-800/80 hover:from-red-600 hover:to-red-800 rune-pulse'
@@ -1226,8 +1433,12 @@ function DescentView({ game, setGame }) {
     : [theme]
   ).some(t => t && t.ironBones)
 
+  const childNames = (game.themeChildren || [])
+    .map(id => getTheme(id)?.name)
+    .filter(Boolean)
+
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 animate-fade-in items-start">
       {introOpen && (
         <ThemeIntroOverlay
           theme={theme}
@@ -1235,64 +1446,68 @@ function DescentView({ game, setGame }) {
           onDismiss={() => setIntroOpen(false)}
         />
       )}
-      <DescentHeader game={game} theme={theme} />
 
-      <section>
-        <div className="text-center mb-3 space-y-0.5">
-          <h2 className="text-[10px] uppercase tracking-[0.3em] text-slate-500">The room</h2>
-          <div className="text-[11px] text-slate-500">
-            Deck <span className="font-mono text-slate-300">{game.deck.length}</span> remain
+      <PhaseRail
+        title={theme?.name || 'Descent'}
+        subtitle={childNames.length > 0 ? childNames.join(' + ') : null}
+      >
+        <HpBar hp={game.hp} maxHp={game.maxHp} />
+        <WeaponPanel game={game} />
+        <ConditionsPanel game={game} theme={theme} />
+      </PhaseRail>
+
+      <div className="space-y-5 min-w-0">
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-[10px] uppercase tracking-[0.3em] text-slate-500">The room</h2>
+            <div className="text-[11px] text-slate-500">
+              Deck <span className="font-mono text-slate-300">{game.deck.length}</span> remain
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 justify-items-center">
-          {game.room.map((c, i) => {
-            let weaponDamage = null
-            let bareDamage = null
-            if (c && isMonster(c)) {
-              // During the Oath reveal animation, peek the damage of the
-              // card that's flipping so the player can see what they're in for.
-              const previewCard = (revealing === i && c.faceDown) ? { ...c, faceDown: false } : c
-              const preview = previewMonsterDamage(game, previewCard)
-              weaponDamage = preview.weapon
-              bareDamage = preview.bare
-            }
-            // The player has already committed once the reveal starts, so
-            // suppress the bare-hands alternate to avoid implying a choice.
-            const showBare = weaponDamage !== null && !themeIronBones && revealing !== i
-            return (
-              <CardSlot
-                key={i}
-                card={c}
-                reveal={revealing === i}
-                onClick={() => c && onCard(i)}
-                onBareHands={showBare ? () => onCardBare(i) : null}
-                weaponDamage={weaponDamage}
-                bareDamage={bareDamage}
-              />
-            )
-          })}
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 justify-items-center">
+            {game.room.map((c, i) => {
+              let weaponDamage = null
+              let bareDamage = null
+              if (c && isMonster(c)) {
+                // During the Oath reveal animation, peek the damage of the
+                // card that's flipping so the player can see what they're in for.
+                const previewCard = (revealing === i && c.faceDown) ? { ...c, faceDown: false } : c
+                const preview = previewMonsterDamage(game, previewCard)
+                weaponDamage = preview.weapon
+                bareDamage = preview.bare
+              }
+              // The player has already committed once the reveal starts, so
+              // suppress the bare-hands alternate to avoid implying a choice.
+              const showBare = weaponDamage !== null && !themeIronBones && revealing !== i
+              return (
+                <CardSlot
+                  key={i}
+                  card={c}
+                  reveal={revealing === i}
+                  onClick={() => c && onCard(i)}
+                  onBareHands={showBare ? () => onCardBare(i) : null}
+                  weaponDamage={weaponDamage}
+                  bareDamage={bareDamage}
+                />
+              )
+            })}
+          </div>
 
-        <div className="mt-5 flex justify-center">
-          <button
-            onClick={onFlee}
-            disabled={!game.canFlee}
-            className="px-6 py-3 rounded-md bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium border border-stone-700 transition"
-          >
-            Flee the room
-          </button>
-        </div>
-      </section>
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={onFlee}
+              disabled={!game.canFlee}
+              className="px-6 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium border border-stone-700 transition"
+            >
+              Flee the room
+            </button>
+          </div>
+        </section>
 
-      <ForesightPanel game={game} />
+        <ForesightPanel game={game} />
 
-      <aside className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-4">
-          <WeaponPanel game={game} />
-          <ConditionsPanel game={game} theme={theme} />
-        </div>
         <LogPanel lines={game.log} />
-      </aside>
+      </div>
     </div>
   )
 }
@@ -1335,42 +1550,18 @@ function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
   )
 }
 
-function DescentHeader({ game, theme }) {
-  const childNames = (game.themeChildren || [])
-    .map(id => getTheme(id)?.name)
-    .filter(Boolean)
-  return (
-    <header className="text-center space-y-3 pb-2">
-      <div>
-        <h1 className="font-display text-2xl sm:text-3xl text-rune">The dungeon</h1>
-        {theme && (
-          <p className="text-[13px] text-slate-400 mt-1">
-            <span className="text-parchment">{theme.name}</span>
-            {childNames.length > 0 && (
-              <span className="text-slate-500"> ({childNames.join(' + ')})</span>
-            )}
-          </p>
-        )}
-      </div>
-      <div className="flex justify-center">
-        <HpBar hp={game.hp} maxHp={game.maxHp} />
-      </div>
-    </header>
-  )
-}
-
 function HpBar({ hp, maxHp }) {
   const pct = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0
   const critical = hp <= maxHp * 0.25
   return (
-    <div className="w-full sm:w-72">
-      <div className="flex items-baseline justify-between mb-1">
+    <div className="panel p-3 w-full">
+      <div className="flex items-baseline justify-between mb-1.5">
         <span className="text-[10px] uppercase tracking-widest text-slate-500">Lifeblood</span>
         <span className="font-mono text-parchment text-lg">
           {hp}<span className="text-slate-500 text-sm">/{maxHp}</span>
         </span>
       </div>
-      <div className="h-2 rounded-full bg-stone-900 border border-stone-800 overflow-hidden">
+      <div className="h-2.5 rounded-full bg-stone-900 border border-stone-800 overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ${
             critical
@@ -1475,7 +1666,7 @@ function ConditionsPanel({ game, theme }) {
 function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal }) {
   if (!card) {
     return (
-      <div className="aspect-[2/3] w-full max-w-[200px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
+      <div className="aspect-[2/3] w-full max-w-[240px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
     )
   }
   if (card.faceDown && !reveal) {
@@ -1489,7 +1680,7 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal
   const previewIcon = willUseWeapon ? '⚔' : '✊'
 
   return (
-    <div className="w-full max-w-[200px] flex flex-col">
+    <div className="w-full max-w-[240px] flex flex-col">
       <button
         onClick={reveal ? undefined : onClick}
         disabled={reveal}
@@ -1537,7 +1728,7 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal
 
 function FaceDownCardSlot({ onClick }) {
   return (
-    <div className="w-full max-w-[200px] flex flex-col">
+    <div className="w-full max-w-[240px] flex flex-col">
       <button
         onClick={onClick}
         className="aspect-[2/3] rounded-lg border-2 border-stone-700 bg-gradient-to-br from-stone-900 via-stone-950 to-black p-4 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] hover:border-rune/50 shadow-md text-rune/60"
@@ -1658,15 +1849,8 @@ function OutcomeView({ game, setGame }) {
   const won = game.phase === 'victory'
   const retired = !won && game.retired
   const headline = won
-    ? 'Daylight.'
-    : retired
-      ? 'You stop descending.'
-      : 'You fall in the dark.'
-  const subtext = won
-    ? 'The last stair opens onto sky. You walk away from a hole in the ground.'
-    : retired
-      ? 'The chamber stays quiet. The next who wakes here starts fresh.'
-      : 'The chamber forgets you. The next who wakes here starts the same descent.'
+    ? 'You are blinded by the light'
+    : 'You fall in the dark.'
   return (
     <div className="text-center space-y-6 pt-6 animate-fade-in">
       <div className="space-y-3">
@@ -1676,9 +1860,6 @@ function OutcomeView({ game, setGame }) {
         <div className="rune-divider mx-auto max-w-xs text-[10px]">
           <span>✦</span>
         </div>
-        <p className="text-sm text-slate-400 max-w-lg mx-auto">
-          {subtext}
-        </p>
         <div className="text-[11px] text-slate-500 uppercase tracking-widest">
           {game.sigilsEarned} of {game.sigilTarget} sigils set
         </div>
@@ -1686,9 +1867,13 @@ function OutcomeView({ game, setGame }) {
 
       <button
         onClick={() => setGame(createRun())}
-        className="px-10 py-4 rounded-md bg-gradient-to-b from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-parchment font-display text-lg tracking-[0.2em] border border-red-800/80"
+        className={`px-10 py-4 rounded-md font-display text-lg tracking-[0.2em] transition ${
+          won
+            ? 'bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 border border-amber-600/80 shadow-[0_0_24px_-6px_rgba(251,191,36,0.6)]'
+            : 'bg-gradient-to-b from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-parchment border border-red-800/80'
+        }`}
       >
-        BEGIN AGAIN
+        {won ? 'ASCEND' : 'BEGIN AGAIN'}
       </button>
 
       <div className="pt-4 border-t border-stone-800 max-w-2xl mx-auto">
@@ -1702,10 +1887,45 @@ function OutcomeView({ game, setGame }) {
 // Log
 // ============================================================
 
-function LogPanel({ lines }) {
+// LogPanel: by default caps at max-h-48 (legacy block placement, e.g.
+// outcome view). When placed in a flex sidebar, pass `flex-1 min-h-0`
+// via className so it absorbs remaining height and scrolls internally.
+// Pass `collapsible` to render a slim header by default that expands on
+// click; used in sanctuary where the log isn't urgent.
+function LogPanel({ lines, className = '', collapsible = false }) {
+  const [expanded, setExpanded] = useState(!collapsible)
+
+  if (collapsible && !expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="panel p-3 w-full flex items-center justify-between text-left hover:border-rune/40 transition"
+        aria-expanded="false"
+      >
+        <span className="text-[10px] uppercase tracking-widest text-slate-500">Log</span>
+        <span className="text-[10px] text-slate-500">
+          {lines.length} {lines.length === 1 ? 'entry' : 'entries'} · show
+        </span>
+      </button>
+    )
+  }
+
+  const sizing = className || 'max-h-48'
   return (
-    <div className="panel p-4 max-h-48 overflow-y-auto">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">Log</div>
+    <div className={`panel p-4 overflow-y-auto ${sizing}`}>
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="text-[10px] uppercase tracking-widest text-slate-500">Log</div>
+        {collapsible && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="text-[10px] uppercase tracking-widest text-slate-500 hover:text-parchment transition"
+            aria-expanded="true"
+          >
+            Hide
+          </button>
+        )}
+      </div>
       <ul className="text-[12px] space-y-1 text-left">
         {lines.map((l, i) => (
           <li key={i} className="text-slate-400 leading-snug">{l}</li>
@@ -1732,13 +1952,54 @@ function RuleRow({ term, children }) {
 function RuleSection({ title, children }) {
   return (
     <section>
-      <h3 className="text-rune text-[11px] font-semibold uppercase tracking-[0.2em] mb-2">{title}</h3>
-      <div className="space-y-1.5">{children}</div>
+      <h3 className="text-rune text-[10px] font-semibold uppercase tracking-[0.25em] mb-1.5 pb-1 border-b border-stone-800">{title}</h3>
+      <div className="space-y-1">{children}</div>
     </section>
   )
 }
 
-function RulesContent() {
+// Compact rules grid shown inline on the opening sanctuary visit.
+// Scannable at a glance so a first-time player can start without
+// opening the modal. The full long-form rules (worked example,
+// fleeing tactics, sanctuary loop) live in RulesContentFull behind
+// the top-bar "How to play" button.
+function RulesContentBrief() {
+  return (
+    <div className="text-[13px] leading-snug">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+        <RuleSection title="The deck">
+          <RuleRow term="Size">44 cards. Red face cards (J/Q/K/A of ♥ and ♦) are removed.</RuleRow>
+          <RuleRow term="Ranks">2–10 as printed. J = 11, Q = 12, K = 13, A = 14.</RuleRow>
+          <RuleRow term="♥ Potion"><span className="text-slate-500">Heals HP = rank.</span> First potion per room only; extras wasted.</RuleRow>
+          <RuleRow term="♦ Weapon"><span className="text-slate-500">Equips it.</span> Replaces your current weapon.</RuleRow>
+          <RuleRow term="♣ ♠ Monster"><span className="text-slate-500">Fight it.</span> Click to swing; "Bare hands" forces a bare-handed fight.</RuleRow>
+        </RuleSection>
+
+        <RuleSection title="Rooms">
+          <RuleRow term="Each room">4 cards. Play <span className="text-parchment font-semibold">3 of them</span> in any order, then the room refills.</RuleRow>
+          <RuleRow term="Carry-over">The 4th card stays for the next room.</RuleRow>
+          <RuleRow term="Flee">All 4 cards to the bottom, deal a fresh 4. Can't flee twice in a row.</RuleRow>
+        </RuleSection>
+
+        <RuleSection title="Damage">
+          <RuleRow term="With weapon"><span className="font-mono text-slate-300"> Damage equal to monster rank − weapon rank</span></RuleRow>
+          <RuleRow term="Bare hands">Full monster rank, straight to your HP.</RuleRow>
+        </RuleSection>
+
+        <RuleSection title="Weapon binding">
+          <RuleRow term="Fresh">Swings at any monster.</RuleRow>
+          <RuleRow term="After a kill">Binds to that rank. Above it, only <span className="text-rune">Bare hands</span>.</RuleRow>
+          <RuleRow term="New weapon">Binding resets.</RuleRow>
+        </RuleSection>
+      </div>
+    </div>
+  )
+}
+
+// Long-form rules with worked example, fleeing tactics, weapon
+// binding nuance, and the sanctuary loop. Surfaced by the top-bar
+// "How to play" button. Single column for a smooth reading flow.
+function RulesContentFull() {
   return (
     <div className="space-y-5 text-[13px] leading-snug">
       <p className="text-slate-300">
@@ -1839,7 +2100,7 @@ function RulesInlinePanel() {
           The button up top brings this back any time.
         </span>
       </div>
-      <RulesContent />
+      <RulesContentBrief />
     </section>
   )
 }
@@ -1898,7 +2159,7 @@ function RulesModal({ open, onClose }) {
           Scoundrel, the 44-card roguelike. Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
         </p>
         <RulesTabBar tab={tab} setTab={setTab} />
-        {tab === 'rules' && <RulesContent />}
+        {tab === 'rules' && <RulesContentFull />}
         {tab === 'boons' && <BoonsGlossary />}
         {tab === 'themes' && <ThemesGlossary />}
       </div>
