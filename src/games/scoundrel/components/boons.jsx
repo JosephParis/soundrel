@@ -1,0 +1,286 @@
+import { useMemo, useState } from 'react'
+import {
+  BOONS, getBoon, rankLabel,
+  computeCurrentDeck,
+} from '../logic'
+import { ConfirmButton } from './atoms'
+import { CardSuitFan } from './forge'
+import { WeaponBlock } from './cards'
+
+const BOON_TAG_LABEL = {
+  combat: 'Combat',
+  survival: 'Survival',
+  economy: 'Economy',
+  build: 'Build',
+}
+
+// -- Boon picker -------------------------------------------------------
+
+export function BoonOfferPanel({ offers, onPick, forgeAfter = false }) {
+  const [selectedId, setSelectedId] = useState(null)
+  const selectedBoon = selectedId ? getBoon(selectedId) : null
+  return (
+    <section className="panel p-6">
+      <div className="text-center mb-5">
+        <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Something comes to you</div>
+        <h2 className="font-display text-rune text-xl mt-1">Pick one Boon</h2>
+        {forgeAfter && (
+          <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-amber-300/80 border border-amber-700/50 rounded-full px-3 py-1">
+            <span className="text-slate-500">Next</span>
+            <span aria-hidden="true">▸</span>
+            <span>Forge</span>
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-items-center">
+        {offers.map(id => {
+          const boon = getBoon(id)
+          return (
+            <BoonCard
+              key={id}
+              boon={boon}
+              selected={selectedId === id}
+              onPick={() => setSelectedId(id)}
+            />
+          )
+        })}
+      </div>
+      <div className="flex justify-center mt-5">
+        <ConfirmButton
+          onClick={() => onPick(selectedId)}
+          disabled={!selectedId}
+          label={selectedBoon ? `Take ${selectedBoon.name}` : 'Pick a Boon above'}
+        />
+      </div>
+    </section>
+  )
+}
+
+function BoonCard({ boon, selected, onPick }) {
+  const tag = BOON_TAG_LABEL[boon.tag] || ''
+  return (
+    <button
+      onClick={onPick}
+      className={`group aspect-[2/3] w-full max-w-[240px] text-left rounded-lg border bg-gradient-to-b p-5 hover:-translate-y-1 transition-all duration-200 shadow-md flex flex-col relative overflow-hidden ${
+        selected
+          ? 'border-rune from-stone-800 to-stone-900 shadow-[0_0_24px_-8px_rgba(251,191,36,0.6)]'
+          : 'border-stone-700 from-stone-900 to-stone-950 hover:border-rune hover:from-stone-800 hover:to-stone-900 hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.5)]'
+      }`}
+    >
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/40 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rune/20 to-transparent" />
+      <div className="font-display text-rune text-lg leading-tight">{boon.name}</div>
+      <div className="h-px bg-stone-700 my-3" />
+      <div className="text-[13px] text-slate-200 leading-snug">{boon.description}</div>
+      {boon.example && (
+        <div className="mt-3 text-[11.5px] text-slate-400 italic leading-snug border-l-2 border-rune/30 pl-2.5">
+          {boon.example}
+        </div>
+      )}
+      <div className="flex-1" />
+      {tag && (
+        <div className="mt-3 pt-3 border-t border-stone-800 text-[10px] uppercase tracking-[0.2em] text-slate-500 group-hover:text-rune/70 transition">
+          {tag}
+        </div>
+      )}
+    </button>
+  )
+}
+
+// -- Run state ---------------------------------------------------------
+
+export function RunStatePanel({ game }) {
+  const empty =
+    game.boons.length === 0 &&
+    game.strikes.length === 0 &&
+    Object.keys(game.transmutes).length === 0 &&
+    Object.keys(game.hefts || {}).length === 0 &&
+    !game.carriedWeapon &&
+    !game.carriedSpareWeapon
+
+  if (empty) {
+    return (
+      <div className="panel p-4">
+        <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">What you carry</div>
+        <div className="text-[13px] text-slate-500 italic">Nothing yet. Survive a descent to earn your first boon.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="panel p-4 space-y-2 text-[13px]">
+      <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">What you carry</div>
+
+      {game.carriedWeapon && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Weapon:</span>{' '}
+          <span className="text-rune font-mono">{rankLabel(game.carriedWeapon.rank)}♦</span>
+          <span className="text-slate-500"> (rests this visit)</span>
+        </div>
+      )}
+      {game.carriedSpareWeapon && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Spare:</span>{' '}
+          <span className="text-rune font-mono">{rankLabel(game.carriedSpareWeapon.rank)}♦</span>
+        </div>
+      )}
+      {game.boons.length > 0 && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Boons:</span>{' '}
+          {game.boons.map((id, i) => (
+            <span key={id}>
+              {i > 0 && <span className="text-slate-600">, </span>}
+              <span className="text-rune">{BOONS[id]?.name}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {game.strikes.length > 0 && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Names carved:</span>{' '}
+          <span className="text-rune">{game.strikes.length / 2}</span>
+        </div>
+      )}
+      {Object.keys(game.transmutes).length > 0 && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Transmutations:</span>{' '}
+          <span className="text-rune">{Object.keys(game.transmutes).length}</span>
+        </div>
+      )}
+      {Object.keys(game.hefts || {}).length > 0 && (
+        <div className="text-slate-300">
+          <span className="text-slate-500">Hefts:</span>{' '}
+          <span className="text-rune">{Object.keys(game.hefts).length}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// -- Deck peek ---------------------------------------------------------
+
+export function DeckPeekButton({ game, onClick }) {
+  const count = useMemo(() => computeCurrentDeck(game).length, [game])
+  return (
+    <button
+      onClick={onClick}
+      className="panel p-3 w-full text-left hover:border-rune/40 transition flex items-baseline justify-between"
+    >
+      <span className="text-[10px] uppercase tracking-widest text-slate-500">View deck</span>
+      <span className="text-[11px] text-slate-500">
+        <span className="font-mono text-slate-300">{count}</span> cards
+      </span>
+    </button>
+  )
+}
+
+export function DeckModal({ open, onClose, game }) {
+  const deck = useMemo(() => (open ? computeCurrentDeck(game) : []), [open, game])
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-w-3xl w-full p-6 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close deck view"
+        >
+          ×
+        </button>
+        <div className="mb-4">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">The deck</div>
+          <h2 className="font-display text-rune text-2xl mt-1">
+            {deck.length} <span className="text-slate-400 text-base">cards</span>
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-1">
+            Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+          </p>
+        </div>
+        <CardSuitFan cards={deck} readOnly />
+      </div>
+    </div>
+  )
+}
+
+// -- Loadout (idle review panel) ---------------------------------------
+
+export function LoadoutPanel({ game }) {
+  const deck = useMemo(() => computeCurrentDeck(game), [game])
+  const { carriedWeapon, carriedSpareWeapon, boons } = game
+  const showWeapons = carriedWeapon || carriedSpareWeapon
+  const showBoons = boons.length > 0
+  const hasSidebar = showWeapons || showBoons
+  return (
+    <section className="panel p-5">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+        <h2 className="font-display text-rune text-base leading-tight">Ready to descend</h2>
+        <div className="text-[10px] uppercase tracking-widest text-slate-500">
+          Deck · <span className="font-mono text-parchment">{deck.length}</span> cards
+          {showBoons && (
+            <>
+              <span className="text-stone-700 mx-2">|</span>
+              <span className="font-mono text-parchment">{boons.length}</span>{' '}
+              {boons.length === 1 ? 'boon' : 'boons'}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className={hasSidebar ? 'grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] gap-x-5 gap-y-4' : ''}>
+        <div className="min-w-0">
+          <CardSuitFan cards={deck} readOnly />
+        </div>
+
+        {hasSidebar && (
+          <div className="space-y-4 md:border-l md:border-stone-800 md:pl-5">
+            {showWeapons && (
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">
+                  {carriedSpareWeapon ? 'Weapons' : 'Weapon'}
+                </div>
+                <div className="space-y-3">
+                  {carriedWeapon && (
+                    <WeaponBlock
+                      game={game}
+                      weapon={carriedWeapon}
+                      label={carriedSpareWeapon ? 'Drawn' : null}
+                    />
+                  )}
+                  {carriedSpareWeapon && (
+                    <div className={carriedWeapon ? 'border-t border-stone-800 pt-3' : ''}>
+                      <WeaponBlock game={game} weapon={carriedSpareWeapon} label="Spare" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {showBoons && (
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Boons</div>
+                <ul className="space-y-2">
+                  {boons.map(id => {
+                    const b = BOONS[id]
+                    if (!b) return null
+                    return (
+                      <li key={id} className="text-[12px] leading-snug">
+                        <div className="text-rune font-semibold">{b.name}</div>
+                        <div className="text-slate-400">{b.description}</div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

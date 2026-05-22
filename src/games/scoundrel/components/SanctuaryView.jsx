@@ -1,0 +1,122 @@
+import { useEffect, useState } from 'react'
+import {
+  descend, pickBoon,
+  openForgeAction, closeForgeView, skipForge,
+  applyStrike, applyTransmute, applyHeft,
+} from '../logic'
+import { PhaseRail, LogPanel, DescendAction } from './atoms'
+import { BoonOfferPanel, RunStatePanel, DeckPeekButton, DeckModal, LoadoutPanel } from './boons'
+import { ForgePromptPanel, StrikeView, TransmuteView, HeftView } from './forge'
+import { RulesInlinePanel, TutorialIntroPanel } from './rules'
+
+export function SanctuaryView({ game, setGame }) {
+  const isOpeningVisit = game.sigilsEarned === 0
+  const needsBoon = !isOpeningVisit && !game.boonChosen && game.boonOffers.length > 0
+  const forgePending = game.forgeOpen && !game.forgeUsed
+  // Sequence is boon → forge → descend. Forge prompt only appears
+  // once the boon is picked. Descend only appears once both stages
+  // are resolved (forge used, skipped, or never available).
+  const showForgePrompt = forgePending && !needsBoon && !game.forgeView
+  const showDescend = !needsBoon && !showForgePrompt && game.forgeView === null
+  const [deckOpen, setDeckOpen] = useState(false)
+
+  useEffect(() => {
+    if (!deckOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setDeckOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [deckOpen])
+
+  // Exactly one panel renders in the action slot (or none, when the
+  // player is idle and ready to descend).
+  let actionSlot = null
+  if (game.tutorial) {
+    actionSlot = (
+      <>
+        <TutorialIntroPanel />
+        <RulesInlinePanel />
+      </>
+    )
+  } else if (isOpeningVisit) {
+    actionSlot = <RulesInlinePanel />
+  } else if (needsBoon) {
+    actionSlot = (
+      <BoonOfferPanel
+        offers={game.boonOffers}
+        onPick={(id) => setGame(g => pickBoon(g, id))}
+        forgeAfter={forgePending}
+      />
+    )
+  } else if (game.forgeView === 'strike') {
+    actionSlot = (
+      <StrikeView
+        game={game}
+        onConfirm={(mid, oid) => setGame(g => applyStrike(g, mid, oid))}
+        onCancel={() => setGame(g => closeForgeView(g))}
+      />
+    )
+  } else if (game.forgeView === 'transmute') {
+    actionSlot = (
+      <TransmuteView
+        game={game}
+        onConfirm={(cid, suit) => setGame(g => applyTransmute(g, cid, suit))}
+        onCancel={() => setGame(g => closeForgeView(g))}
+      />
+    )
+  } else if (game.forgeView === 'heft') {
+    actionSlot = (
+      <HeftView
+        game={game}
+        onConfirm={(cid) => setGame(g => applyHeft(g, cid))}
+        onCancel={() => setGame(g => closeForgeView(g))}
+      />
+    )
+  } else if (showForgePrompt) {
+    actionSlot = (
+      <ForgePromptPanel
+        onStrike={() => setGame(g => openForgeAction(g, 'strike'))}
+        onTransmute={() => setGame(g => openForgeAction(g, 'transmute'))}
+        onHeft={() => setGame(g => openForgeAction(g, 'heft'))}
+        onSkip={() => setGame(g => skipForge(g))}
+      />
+    )
+  } else {
+    actionSlot = <LoadoutPanel game={game} />
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 animate-fade-in items-start">
+      <PhaseRail
+        title="Sanctuary"
+        subtitle={isOpeningVisit
+          ? 'You wake in a quiet chamber. The only way out leads down.'
+          : 'The chamber is still. Below, the dark waits.'}
+      >
+        <div className="panel p-3">
+          <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Lifeblood</div>
+          <div className="font-mono text-parchment text-base">
+            {game.maxHp}<span className="text-slate-500 text-sm">/{game.maxHp}</span>
+            <span className="ml-2 text-[10px] uppercase tracking-widest text-rune/70">Rested</span>
+          </div>
+        </div>
+        <RunStatePanel game={game} />
+        <DeckPeekButton game={game} onClick={() => setDeckOpen(true)} />
+        <LogPanel lines={game.log} collapsible />
+      </PhaseRail>
+
+      <DeckModal open={deckOpen} onClose={() => setDeckOpen(false)} game={game} />
+
+      <div className="space-y-5 min-w-0">
+        {actionSlot}
+
+        {showDescend && (
+          <DescendAction
+            onDescend={() => setGame(g => descend(g))}
+            disabled={false}
+            reason={null}
+          />
+        )}
+      </div>
+    </div>
+  )
+}

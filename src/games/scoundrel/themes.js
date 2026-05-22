@@ -28,7 +28,7 @@ export const THEMES = {
   // manually in logic.js buildTutorialDeck and the shuffle is skipped.
   tutorial: {
     id: 'tutorial',
-    name: 'The walk',
+    name: 'The Walk',
     description: 'A short walkthrough.',
   },
 

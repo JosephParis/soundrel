@@ -1,0 +1,219 @@
+import { useEffect, useMemo, useState } from 'react'
+import { THEMES, BOONS, FORGE_SIGILS, getTheme } from '../logic'
+
+// -- Credits modal -----------------------------------------------------
+
+export function CreditsModal({ open, onClose }) {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-w-md w-full p-6 sm:p-8 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close credits"
+        >
+          ×
+        </button>
+        <h2 className="font-display text-rune text-2xl mb-1">Credits</h2>
+        <p className="text-[12px] text-slate-500 mb-5">
+          Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+        </p>
+        <section>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500 mb-3">
+            Design & playtesting
+          </div>
+          <ul className="space-y-1.5 text-[15px] text-parchment font-display">
+            <li>Alexander Beck</li>
+            <li>Bronislaw Andrus</li>
+            <li>Wesley Andrus</li>
+            <li>Joshua Rolfe</li>
+          </ul>
+          <p className="mt-5 text-[12px] text-slate-400 italic leading-snug">
+            Thanks for the runs, feedback, and ideas that shaped this wonderful game.
+          </p>
+        </section>
+        <section className="mt-6 pt-4 border-t border-stone-800">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500 mb-2">
+            Art
+          </div>
+          <p className="text-[11px] text-slate-500 leading-snug">
+            Card icons by Lorc via{' '}
+            <span className="text-slate-300">game-icons.net</span>, CC-BY 3.0.
+          </p>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+// -- Dev modal ---------------------------------------------------------
+
+export function DevModal({ open, onClose, game, setGame }) {
+  const tier2Ids = useMemo(
+    () => Object.values(THEMES).filter(t => t.tier === 2).map(t => t.id),
+    []
+  )
+  const [sigils, setSigils] = useState(game.sigilsEarned)
+  const [themeId, setThemeId] = useState(game.nextTheme || 'the_quiet')
+  const [child1, setChild1] = useState(() => game.nextThemeChildren?.[0] || tier2Ids[0] || '')
+  const [child2, setChild2] = useState(() => game.nextThemeChildren?.[1] || tier2Ids[1] || '')
+  const [selectedBoons, setSelectedBoons] = useState(() => new Set(game.boons))
+
+  // When the modal re-opens, seed local form state from current game state
+  // so it reflects whatever the player just did.
+  useEffect(() => {
+    if (!open) return
+    setSigils(game.sigilsEarned)
+    setThemeId(game.nextTheme || 'the_quiet')
+    setChild1(game.nextThemeChildren?.[0] || tier2Ids[0] || '')
+    setChild2(game.nextThemeChildren?.[1] || tier2Ids[1] || '')
+    setSelectedBoons(new Set(game.boons))
+  }, [open, game.sigilsEarned, game.nextTheme, game.nextThemeChildren, game.boons, tier2Ids])
+
+  if (!open) return null
+
+  const themeObj = getTheme(themeId)
+  const isCompound = !!themeObj?.compound
+  const maxSigils = game.sigilTarget - 1
+
+  const toggleBoon = (id) => {
+    setSelectedBoons(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const apply = () => {
+    setGame(g => ({
+      ...g,
+      sigilsEarned: sigils,
+      nextTheme: themeId,
+      nextThemeChildren: isCompound
+        ? [child1, child2].filter(Boolean)
+        : null,
+      boons: Array.from(selectedBoons),
+      boonChosen: true,
+      boonOffers: [],
+      forgeOpen: FORGE_SIGILS.has(sigils),
+      forgeUsed: false,
+      forgeView: null,
+      mutedBoon: null,
+      log: [...g.log, `[dev] overrides applied: sigils ${sigils}, theme "${themeObj?.name || themeId}".`],
+    }))
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="panel max-w-md w-full p-6 my-4 sm:my-auto relative shadow-2xl border border-amber-900/40 space-y-3 text-[12px]"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 text-parchment text-xl leading-none flex items-center justify-center border border-stone-700"
+          aria-label="Close dev overrides"
+        >
+          ×
+        </button>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">Dev overrides</div>
+        <p className="text-[11px] text-slate-500 -mt-1">
+          Press <span className="font-mono text-slate-300">Esc</span> or click outside to close.
+        </p>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Sigils earned</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={maxSigils}
+              value={sigils}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                setSigils(Math.max(0, Math.min(maxSigils, Number.isFinite(n) ? n : 0)))
+              }}
+              className="w-16 bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment font-mono"
+            />
+            <span className="text-slate-500">/ {game.sigilTarget}</span>
+            {FORGE_SIGILS.has(sigils) && (
+              <span className="text-amber-300/70 text-[10px] uppercase tracking-wider">Forge opens</span>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Next theme</div>
+          <select
+            value={themeId}
+            onChange={(e) => setThemeId(e.target.value)}
+            className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
+          >
+            {Object.values(THEMES).map(t => {
+              const tier = t.tier ? `T${t.tier}` : 'intro'
+              return <option key={t.id} value={t.id}>{t.name} ({tier})</option>
+            })}
+          </select>
+        </div>
+
+        {isCompound && (
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: 'Child A', value: child1, set: setChild1 },
+              { label: 'Child B', value: child2, set: setChild2 },
+            ].map(({ label, value, set }) => (
+              <div key={label}>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{label} (T2)</div>
+                <select
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  className="block w-full bg-stone-900 border border-stone-700 rounded px-2 py-1 text-parchment"
+                >
+                  {tier2Ids.map(id => (
+                    <option key={id} value={id}>{THEMES[id].name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Boons</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {Object.values(BOONS).map(b => (
+              <label key={b.id} className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-parchment">
+                <input
+                  type="checkbox"
+                  checked={selectedBoons.has(b.id)}
+                  onChange={() => toggleBoon(b.id)}
+                  className="accent-amber-500"
+                />
+                <span>{b.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={apply}
+          className="w-full px-3 py-2 rounded-md bg-amber-900/40 hover:bg-amber-900/60 text-amber-100 text-[11px] uppercase tracking-widest border border-amber-700/50 transition"
+        >
+          Apply overrides
+        </button>
+      </div>
+    </div>
+  )
+}
