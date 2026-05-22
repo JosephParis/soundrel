@@ -126,14 +126,14 @@ export function ConditionsPanel({ game, theme }) {
 
 // -- Card slot ---------------------------------------------------------
 
-export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal, recommended, tutorialTip }) {
+export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal, recommended, tutorialTip, blocked }) {
   if (!card) {
     return (
       <div className="aspect-[2/3] w-full max-w-[240px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
     )
   }
   if (card.faceDown && !reveal) {
-    return <FaceDownCardSlot onClick={onClick} />
+    return <FaceDownCardSlot onClick={blocked ? undefined : onClick} blocked={blocked} />
   }
   const red = card.suit === HEART || card.suit === DIAMOND
   const kind = isMonster(card) ? 'Monster' : isWeapon(card) ? 'Weapon' : isPotion(card) ? 'Potion' : ''
@@ -141,6 +141,13 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
   const willUseWeapon = monster && weaponDamage !== null
   const previewDesc = !monster ? null : willUseWeapon ? weaponDamage : bareDamage
   const previewIcon = willUseWeapon ? '⚔' : '✊'
+
+  const cardDisabled = reveal || blocked
+  const cardInteractive = reveal
+    ? 'animate-card-reveal cursor-default ring-2 ring-rune/60'
+    : blocked
+      ? 'cursor-not-allowed grayscale opacity-40'
+      : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)]'
 
   return (
     <div className="group relative w-full max-w-[240px] flex flex-col">
@@ -153,9 +160,9 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
         </div>
       )}
       <button
-        onClick={reveal ? undefined : onClick}
-        disabled={reveal}
-        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-3 flex flex-col text-left transition-all shadow-md ${reveal ? 'animate-card-reveal cursor-default ring-2 ring-rune/60' : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)]'} ${recommended ? 'tutorial-recommended' : ''}`}
+        onClick={cardDisabled ? undefined : onClick}
+        disabled={cardDisabled}
+        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-3 flex flex-col text-left transition-all shadow-md ${cardInteractive} ${recommended ? 'tutorial-recommended' : ''}`}
       >
         <div className={`text-2xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
@@ -182,8 +189,9 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
       </button>
       {onBareHands && (
         <button
-          onClick={onBareHands}
-          className="mt-2 w-full py-2.5 px-3 rounded-md bg-stone-800 hover:bg-stone-700 text-parchment text-sm font-medium border border-stone-700 transition flex flex-col items-center"
+          onClick={blocked ? undefined : onBareHands}
+          disabled={blocked}
+          className={`mt-2 w-full py-2.5 px-3 rounded-md bg-stone-800 text-parchment text-sm font-medium border border-stone-700 transition flex flex-col items-center ${blocked ? 'cursor-not-allowed opacity-40' : 'hover:bg-stone-700'}`}
         >
           <span>✊ Bare hands · take {bareDamage.value}</span>
           {bareDamage.parts.length > 1 && (
@@ -195,7 +203,7 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
       )}
       {tutorialTip && (
         <div
-          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-30 w-72 panel p-3 text-[13px] leading-relaxed text-slate-200 text-left opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-150 shadow-2xl border border-rune/40"
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-30 w-72 panel p-3 text-[13px] leading-relaxed text-slate-200 text-left pointer-events-none shadow-2xl border border-rune/40"
           role="tooltip"
         >
           {tutorialTip}
@@ -205,12 +213,13 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
   )
 }
 
-function FaceDownCardSlot({ onClick }) {
+function FaceDownCardSlot({ onClick, blocked }) {
   return (
     <div className="w-full max-w-[240px] flex flex-col">
       <button
-        onClick={onClick}
-        className="aspect-[2/3] rounded-lg border-2 border-stone-700 bg-gradient-to-br from-stone-900 via-stone-950 to-black p-4 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] hover:border-rune/50 shadow-md text-rune/60"
+        onClick={blocked ? undefined : onClick}
+        disabled={!!blocked}
+        className={`aspect-[2/3] rounded-lg border-2 border-stone-700 bg-gradient-to-br from-stone-900 via-stone-950 to-black p-4 flex flex-col justify-between transition-all shadow-md text-rune/60 ${blocked ? 'cursor-not-allowed grayscale opacity-40' : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)] hover:border-rune/50'}`}
       >
         <div className="text-4xl leading-none font-display">?</div>
         <div className="text-xs uppercase tracking-[0.2em] text-slate-500 text-center">

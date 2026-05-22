@@ -75,30 +75,10 @@ export function DescentView({ game, setGame }) {
     () => (tutorialActive ? computeTutorialCue(game) : null),
     [tutorialActive, game]
   )
-  // Inline lesson notes that show up in the tutorial banner when the
-  // relevant game state is live (weapon bound + something in room
-  // would be locked; a potion already drunk this room while another
-  // sits in the room). Persistent rather than one-shot so the player
-  // can't miss them.
-  const tutorialContextHints = useMemo(() => {
-    if (!tutorialActive) return []
-    const hints = []
-    if (game.weapon?.lastSlain) {
-      const bound = game.weapon.lastSlain.rank
-      hints.push(
-        `Weapon binding: your blade is bound at ${bound}. It can only be used to swing at rank ${bound} or lower.`
-      )
-    }
-    if (game.potionsUsedThisRoom > 0) {
-      const morePotions = game.room.some(c => c && isPotion(c))
-      hints.push(
-        morePotions
-          ? `Potion limit: you've already healed this room. The other potion here will pass through wasted.`
-          : `Potion limit: only the first potion drunk in a room heals. Any extras are wasted.`
-      )
-    }
-    return hints
-  }, [tutorialActive, game.weapon, game.room, game.potionsUsedThisRoom])
+  // While the cue points at a specific action (a card or the Flee
+  // button), every other action gets locked out so the player can't
+  // make a mistake during the walk.
+  const cueHasTarget = tutorialActive && !!tutorialCue && (tutorialCue.recommendedId != null || tutorialCue.recommendFlee)
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 animate-fade-in items-start">
@@ -133,18 +113,11 @@ export function DescentView({ game, setGame }) {
               <div className="mb-3 panel panel-warm p-4 text-[14px] text-slate-300 leading-relaxed space-y-2">
                 <div>
                   <span className="text-rune font-semibold uppercase text-[11px] tracking-[0.2em] mr-2">Tutorial</span>
-                  The glowing card is the recommended next move. Hover any card for an explanation.
+                  Take the glowing move (explanation below it). Other actions are locked while you learn.
                 </div>
                 <div className="text-slate-400 text-[13px]">
-                  If a room looks unwinnable, <span className="text-rune">Flee the room</span> below sends all 4 cards to the bottom of the deck and deals 4 fresh. You can't flee twice in a row.
+                  When a room is unwinnable, the cue points at <span className="text-rune">Flee the room</span> instead. Fleeing sends all 4 cards to the bottom of the deck and deals 4 fresh; you can't flee twice in a row.
                 </div>
-                {tutorialContextHints.length > 0 && (
-                  <div className="pt-2 mt-2 border-t border-amber-900/30 space-y-1.5">
-                    {tutorialContextHints.map((hint, i) => (
-                      <div key={i} className="text-[13px] text-amber-200/90 leading-relaxed">{hint}</div>
-                    ))}
-                  </div>
-                )}
               </div>
             ) : (
               <div className="mb-3 panel p-4 text-[14px] text-slate-400 leading-relaxed">
@@ -169,7 +142,8 @@ export function DescentView({ game, setGame }) {
               // suppress the bare-hands alternate to avoid implying a choice.
               const showBare = weaponDamage !== null && !themeIronBones && revealing !== i
               const isRecommended = tutorialActive && tutorialCue && c?.id === tutorialCue.recommendedId && revealing !== i
-              const tip = tutorialActive && c ? tutorialTipFor(game, c) : null
+              const tip = isRecommended && c ? tutorialTipFor(game, c) : null
+              const blocked = cueHasTarget && !!c && !isRecommended
               return (
                 <CardSlot
                   key={i}
@@ -181,6 +155,7 @@ export function DescentView({ game, setGame }) {
                   bareDamage={bareDamage}
                   recommended={isRecommended}
                   tutorialTip={tip}
+                  blocked={blocked}
                 />
               )
             })}
@@ -198,19 +173,17 @@ export function DescentView({ game, setGame }) {
               )}
               <button
                 onClick={onFlee}
-                disabled={!game.canFlee}
+                disabled={!game.canFlee || (tutorialActive && tutorialCue?.recommendedId != null)}
                 className={`px-6 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium border border-stone-700 transition ${tutorialCue?.recommendFlee ? 'tutorial-recommended' : ''}`}
               >
                 Flee the room
               </button>
-              {tutorialActive && (
+              {tutorialCue?.recommendFlee && (
                 <div
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-30 w-80 panel p-3 text-[13px] leading-relaxed text-slate-200 text-left opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-150 shadow-2xl border border-rune/40"
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-30 w-80 panel p-3 text-[13px] leading-relaxed text-slate-200 text-left pointer-events-none shadow-2xl border border-rune/40"
                   role="tooltip"
                 >
-                  {game.canFlee
-                    ? 'Sends all 4 cards to the bottom of the deck and deals a fresh 4 from the top. No damage. Cooldown after: you must clear a fresh room first.'
-                    : "Disabled. You just fled — clear a fresh room before fleeing again."}
+                  Sends all 4 cards to the bottom of the deck and deals a fresh 4 from the top. No damage. Cooldown after: you must clear a fresh room first.
                 </div>
               )}
             </div>
@@ -266,15 +239,17 @@ function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
 // -- Tutorial cue + tooltip helpers ------------------------------------
 
 // Tutorial: which card in the current room should the player consider
-// next? Priority is intentionally simple so the suggestion is
-// predictable: pick up a weapon if you don't have one, swing at the
-// smallest usable monster, take a new weapon when locked, sip a
-// potion if hurt, otherwise just play whatever's left.
-//
-// If the room is genuinely stuck (locked monsters present, no new
-// weapon to take, no useful potion) and the player can flee, the cue
-// returns `recommendFlee: true` instead of a card id. The Flee button
-// gets the highlight in that case.
+// next? Priority is set so every recommendation is the smart play:
+//   1. Equip a weapon if you don't have one
+//   2. Replace your weapon when locked monsters block the room
+//      AND a new weapon in the room would actually unlock at least one
+//   3. Swing at the LARGEST usable monster (binding drops, so spend the
+//      weapon's headroom on the biggest target first)
+//   4. Sip a potion when hurt (smallest one that fully heals; if none
+//      can fully heal, the largest non-overshooting one)
+//   5. Bare-hand a lone locked monster you can safely absorb
+//   6. Flee if multiple locked monsters remain, or one too big to eat
+//   7. Otherwise no recommendation (room is just wind-down plays)
 function computeTutorialCue(game) {
   const room = game.room.filter(Boolean)
   if (room.length === 0) return { recommendedId: null, recommendFlee: false }
@@ -284,78 +259,116 @@ function computeTutorialCue(game) {
   const monsters = room.filter(c => isMonster(c))
   const potions = room.filter(c => isPotion(c))
 
+  const bound = weapon?.lastSlain?.rank
   const usableMonsters = monsters.filter(m => {
     if (!weapon) return false
-    if (!weapon.lastSlain) return true
-    return m.rank <= weapon.lastSlain.rank
+    if (bound == null) return true
+    return m.rank <= bound
   })
+  const lockedMonsters = monsters.filter(m => !usableMonsters.includes(m))
 
-  const lockedMonsters = weapon && weapon.lastSlain
-    ? monsters.filter(m => m.rank > weapon.lastSlain.rank)
-    : []
   const potionUseful = potions.length > 0
     && game.hp < game.maxHp
     && game.potionsUsedThisRoom === 0
 
-  // Flee scenario: the room has monsters above the current binding,
-  // there's no new weapon in the room to reset the binding, and a
-  // potion wouldn't change the situation. Killing a small usable
-  // monster here would only drop the binding further. Send the room
-  // back into the deck and try fresh cards.
+  // 1. No weapon yet, one is sitting in the room.
+  if (!weapon && weaponInRoom) {
+    return { recommendedId: weaponInRoom.id, recommendFlee: false }
+  }
+
+  // 2. Replace the weapon when a swap would unlock at least one
+  // currently-locked monster. A fresh weapon swings at anything until
+  // its first kill, so taking it first means we fight the biggest
+  // locked enemy at full power.
   if (
     weapon
     && lockedMonsters.length > 0
-    && !weaponInRoom
-    && !potionUseful
-    && game.canFlee
+    && weaponInRoom
+    && lockedMonsters.some(m => weaponInRoom.rank >= m.rank)
   ) {
-    return { recommendedId: null, recommendFlee: true }
+    return { recommendedId: weaponInRoom.id, recommendFlee: false }
   }
 
-  let recommendedId = null
-  if (!weapon && weaponInRoom) {
-    recommendedId = weaponInRoom.id
-  } else if (usableMonsters.length > 0) {
-    const ordered = [...usableMonsters].sort((a, b) => a.rank - b.rank)
-    recommendedId = ordered[0].id
-  } else if (monsters.length > 0 && weaponInRoom) {
-    // Locked weapon, take a new one
-    recommendedId = weaponInRoom.id
-  } else if (potions.length > 0 && game.hp < game.maxHp && game.potionsUsedThisRoom === 0) {
-    recommendedId = potions[0].id
-  } else if (monsters.length > 0) {
-    const ordered = [...monsters].sort((a, b) => a.rank - b.rank)
-    recommendedId = ordered[0].id
-  } else if (room.length > 0) {
-    recommendedId = room[0].id
+  // 3. Swing at the biggest monster the weapon can still reach. After
+  // the kill, binding drops to that monster's rank; smaller usable
+  // monsters stay usable, while smaller-first would have wasted the
+  // weapon's headroom.
+  if (usableMonsters.length > 0) {
+    const biggest = [...usableMonsters].sort((a, b) => b.rank - a.rank)[0]
+    return { recommendedId: biggest.id, recommendFlee: false }
   }
-  return { recommendedId, recommendFlee: false }
+
+  // 4. Heal. Pick the smallest potion that fully covers the missing HP
+  // (so nothing spills over the cap). If none does, the largest non-
+  // overshooting potion (or just the largest if all overshoot equally).
+  if (potionUseful) {
+    const need = game.maxHp - game.hp
+    const sorted = [...potions].sort((a, b) => a.rank - b.rank)
+    const exact = sorted.find(p => p.rank >= need)
+    const choice = exact || sorted[sorted.length - 1]
+    return { recommendedId: choice.id, recommendFlee: false }
+  }
+
+  // 5/6. Only locked monsters left (no usable swing, no useful potion,
+  // no helpful weapon in the room). Decide between bare hands and flee.
+  if (lockedMonsters.length > 0) {
+    const smallestLocked = [...lockedMonsters].sort((a, b) => a.rank - b.rank)[0]
+    // Can't flee: must bare-hand the smallest.
+    if (!game.canFlee) {
+      return { recommendedId: smallestLocked.id, recommendFlee: false }
+    }
+    // Multiple locked monsters, or one too big to safely absorb -> flee.
+    const tooBig = smallestLocked.rank > Math.floor(game.hp / 2)
+    if (lockedMonsters.length > 1 || tooBig) {
+      return { recommendedId: null, recommendFlee: true }
+    }
+    // One small locked monster, can safely bare-hand it.
+    return { recommendedId: smallestLocked.id, recommendFlee: false }
+  }
+
+  // 7. No strategic move left (e.g., leftover wasted potions, downgrade
+  // weapons). Let the player play through without a highlight.
+  return { recommendedId: null, recommendFlee: false }
 }
 
-// Per-card hover tip for the tutorial. Reads current game state so
-// the explanation reflects what will actually happen if the player
-// clicks (e.g. "locked, take a new weapon" vs "swing, binds at 4").
+// Per-card tutorial tip. Reads current game state so the explanation
+// reflects what will actually happen if the player clicks (e.g.
+// "locked, take a new weapon" vs "swing, binds at 4").
 function tutorialTipFor(game, card) {
   if (isWeapon(card)) {
     if (!game.weapon) return 'Pick up the weapon. You equip it and can swing at monsters.'
-    return 'Replaces your current weapon. The new one is fresh, swings at anything until its first kill.'
+    const lockedAhead = game.room.some(c => c && isMonster(c) && c.rank > (game.weapon.lastSlain?.rank ?? Infinity))
+    if (lockedAhead) {
+      return 'Replace your weapon. The new one is fresh, swings at anything until its first kill, so use it on the biggest locked monster first.'
+    }
+    return 'Replaces your current weapon with a fresh one (no binding). Usually only worth taking when a monster in the room is locked.'
   }
   if (isPotion(card)) {
     if (game.potionsUsedThisRoom > 0) {
-      return `Wasted this room. Only the first potion per room heals.`
+      return 'Wasted. Only the first potion drunk in a room heals; the rest pass through.'
     }
-    return `Heals ${card.rank} HP (capped at ${game.maxHp}).`
+    if (game.hp >= game.maxHp) {
+      return "You're already at full HP. Drinking now wastes the potion."
+    }
+    const need = game.maxHp - game.hp
+    const healed = Math.min(card.rank, need)
+    const overshoot = card.rank - healed
+    if (overshoot > 0) {
+      return `Heals ${healed} HP (the other ${overshoot} spills over the cap).`
+    }
+    return `Heals ${card.rank} HP, exactly back to full. Only the first potion drunk in a room heals; any extras are wasted.`
   }
   if (isMonster(card)) {
     if (!game.weapon) {
-      return `Bare hands: take the full ${card.rank} damage to HP.`
+      return `No weapon equipped. Bare hands: take the full ${card.rank} damage.`
     }
     const bound = game.weapon.lastSlain?.rank
     if (bound !== undefined && card.rank > bound) {
-      return `Your weapon is bound at ${bound}, ineffective against ${card.rank}. Must Bare hands (take full damage) to fight.`
+      return `Your weapon is bound at ${bound}, useless against rank ${card.rank}. Bare hands take the full ${card.rank} damage.`
     }
     const damage = Math.max(0, card.rank - game.weapon.rank)
-    return `Swing for ${damage} damage. After the kill, the weapon binds at ${card.rank}. Weapon can only swing at monsters of that rank or lower.`
+    return `Swing. Take ${damage} damage (${card.rank} - ${game.weapon.rank}). After the kill the weapon binds at ${card.rank}; only monsters of that rank or lower can be swung at.`
   }
   return null
 }
+

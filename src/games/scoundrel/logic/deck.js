@@ -77,22 +77,27 @@ export function buildDescentDeck(state, themeId, themeChildren, rng) {
 }
 
 // Hand-curated tutorial deck. 22 cards. Order matters and we skip
-// the shuffle so the tutorial hits each lesson in sequence:
+// the shuffle so the tutorial hits each lesson in sequence. The cue
+// in DescentView.computeTutorialCue is the source of truth for what
+// "smart play" looks like; this deck is designed so following the
+// cue's arrow lands every lesson cleanly.
 //
-//   Room 1 (dealt): 5♦ 3♣ 2♥ 7♠
-//     → equip · fight · potion · carryover
-//   Room 2 (carry 7♠ + 6♦ 4♣ 5♥)
-//     → replace weapon · fight with fresh weapon · heal · carry
-//   Room 3 (carry 4♣ + 9♠ 10♠ 9♣)
-//     → all big monsters above the new binding, no new weapon, no
-//       potion. FLEE is forced; the cue recommends the Flee button.
-//   Post-flee Room (8♦ 8♥ 6♣ 7♥)
-//     → fresh weapon, heal, manageable fight, carry potion
-//   Room 4 (carry + 5♣ 6♥ 7♣) → standard play with the new blade
-//   Room 5 (carry + 7♦ 8♠ 4♥) → another replacement opportunity
-//   Room 6 (carry + 5♠ 10♣ ...) → tail. Cycled-back 4♣/9♠/10♠/9♣
-//     reappear here when the player's binding is high enough to
-//     handle (or at least eat) them.
+//   Room 1 dealt: 5♦ 3♣ 2♥ 7♠
+//     equip 5♦, swing 7♠ (largest first, binds 7), swing 3♣ (binds 3).
+//     Carry 2♥. -> equip, fight, binding awareness.
+//   Room 2 (refill 6♦ 4♣ 5♥ + 2♥): 4♣ is locked at binding 3.
+//     Replace 6♦ (unlocks 4♣), swing 4♣, drink 2♥ (heals exactly 2).
+//     Carry 5♥. -> replace, potion.
+//   Room 3 (refill 9♠ 10♠ 9♣ + 5♥): all monsters locked, no weapon,
+//     no useful potion (HP full). -> flee.
+//   Post-flee deal: 8♦ 8♥ 6♣ 7♥. 6♣ is locked at binding 4.
+//     Replace 8♦, swing 6♣. Two potions remain at full HP — cue goes
+//     silent, player plays them through.
+//   Room 5 (refill 5♣ 6♥ 7♣ + carryover): 7♣ is locked at binding 6.
+//     Swing 5♣, bare-hand 7♣ (lone locked, safe to absorb), drink 7♥
+//     (heals exactly back to full). -> bare hands.
+//   Tail (7♦ 8♠ 4♥ 5♠ 10♣ + cycled-back cards): lessons are done by
+//     this point. The cue stops; the player finishes the walk freely.
 export function buildTutorialDeck() {
   return [
     // Room 1
@@ -103,7 +108,7 @@ export function buildTutorialDeck() {
     // Room 2
     { suit: DIAMOND, rank: 6, id: 'tut_d6' },
     { suit: CLUB,    rank: 4, id: 'tut_c4' },
-    { suit: HEART,   rank: 5, id: 'tut_h5' },
+    { suit: HEART,   rank: 10, id: 'tut_h10' },
     // Room 3 (forces flee)
     { suit: SPADE,   rank: 9,  id: 'tut_s9' },
     { suit: SPADE,   rank: 10, id: 'tut_s10' },
@@ -120,7 +125,7 @@ export function buildTutorialDeck() {
     // Room 5
     { suit: DIAMOND, rank: 7, id: 'tut_d7' },
     { suit: SPADE,   rank: 8, id: 'tut_s8' },
-    { suit: HEART,   rank: 4, id: 'tut_h4' },
+    { suit: DIAMOND, rank: 10, id: 'tut_d10' },
     // Tail
     { suit: SPADE,   rank: 5,  id: 'tut_s5' },
     { suit: CLUB,    rank: 10, id: 'tut_c10' },
