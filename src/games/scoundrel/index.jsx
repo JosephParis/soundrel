@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import {
   createRun,
   descend,
@@ -17,6 +17,7 @@ import {
   getTransmuteOptions,
   getHeftOptions,
   computeCurrentDeck,
+  tutorialAllLessonsDone,
   HEFT_BONUS,
   STRIKE_OFFERING_RANGE,
   suitColor,
@@ -107,6 +108,7 @@ function suitIconTone(card) {
 // in a way that would break older saves. Old data is discarded silently.
 const SAVE_KEY = 'scoundrel:save'
 const SAVE_VERSION = 1
+const TUTORIAL_KEY = 'scoundrel:tutorialCompleted'
 
 function loadSavedGame() {
   try {
@@ -129,34 +131,77 @@ function saveGame(state) {
   }
 }
 
+// Tutorial completion is tracked separately from save state so it
+// persists across "begin again" presses and survives a save wipe.
+function tutorialAlreadyCompleted() {
+  try {
+    return localStorage.getItem(TUTORIAL_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function markTutorialCompleted() {
+  try {
+    localStorage.setItem(TUTORIAL_KEY, 'true')
+  } catch {
+    // ignore
+  }
+}
+
+// Wraps createRun so the tutorial flag is decided once, based on
+// whether the player has finished it before.
+function freshRun() {
+  return createRun(Math.random, { tutorial: !tutorialAlreadyCompleted() })
+}
+
 // ============================================================
 // Root
 // ============================================================
 
 export default function Scoundrel() {
-  const [game, setGame] = useState(() => loadSavedGame() || createRun())
+  const [game, setGame] = useState(() => loadSavedGame() || freshRun())
   const [rulesOpen, setRulesOpen] = useState(false)
   const [retireOpen, setRetireOpen] = useState(false)
   const [creditsOpen, setCreditsOpen] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
+  const [tutorialReplayOpen, setTutorialReplayOpen] = useState(false)
 
   useEffect(() => {
     saveGame(game)
   }, [game])
 
+  // Mark the tutorial as completed when the player finishes the
+  // curated descent (tutorial flag flips off via endDescentVictory and
+  // they land in sanctuary). Death during tutorial leaves the flag on
+  // and phase=gameover, so it won't fire there.
+  const wasTutorialRef = useRef(game.tutorial)
   useEffect(() => {
-    const anyOpen = rulesOpen || retireOpen || creditsOpen || devOpen
+    if (wasTutorialRef.current && !game.tutorial && game.phase === 'sanctuary') {
+      markTutorialCompleted()
+    }
+    wasTutorialRef.current = game.tutorial
+  }, [game.tutorial, game.phase])
+
+  useEffect(() => {
+    const anyOpen = rulesOpen || retireOpen || creditsOpen || devOpen || tutorialReplayOpen
     if (!anyOpen) return
     const onKey = (e) => {
       if (e.key !== 'Escape') return
       if (devOpen) setDevOpen(false)
       else if (creditsOpen) setCreditsOpen(false)
       else if (retireOpen) setRetireOpen(false)
+      else if (tutorialReplayOpen) setTutorialReplayOpen(false)
       else if (rulesOpen) setRulesOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [rulesOpen, retireOpen, creditsOpen, devOpen])
+  }, [rulesOpen, retireOpen, creditsOpen, devOpen, tutorialReplayOpen])
+
+  const confirmReplayTutorial = () => {
+    setGame(createRun(Math.random, { tutorial: true }))
+    setTutorialReplayOpen(false)
+  }
 
   const confirmRetire = () => {
     setGame(g => retireRun(g))
@@ -171,6 +216,7 @@ export default function Scoundrel() {
         onRetire={() => setRetireOpen(true)}
         onOpenCredits={() => setCreditsOpen(true)}
         onOpenDev={() => setDevOpen(true)}
+        onReplayTutorial={() => setTutorialReplayOpen(true)}
       />
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <RetireModal
@@ -182,6 +228,11 @@ export default function Scoundrel() {
       />
       <CreditsModal open={creditsOpen} onClose={() => setCreditsOpen(false)} />
       <DevModal open={devOpen} onClose={() => setDevOpen(false)} game={game} setGame={setGame} />
+      <TutorialReplayModal
+        open={tutorialReplayOpen}
+        onConfirm={confirmReplayTutorial}
+        onCancel={() => setTutorialReplayOpen(false)}
+      />
       <main className="flex-1 w-full max-w-7xl px-4 sm:px-6 pt-16 sm:pt-20 pb-8">
         {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} />}
         {game.phase === 'descent' && <DescentView game={game} setGame={setGame} />}
@@ -197,7 +248,7 @@ export default function Scoundrel() {
 // Top bar (persistent across phases)
 // ============================================================
 
-function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev }) {
+function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, onReplayTutorial }) {
   const runActive = game.phase === 'sanctuary' || game.phase === 'descent'
   return (
     <header className="fixed top-0 left-0 right-0 z-30 border-b border-stone-800/80 bg-dungeon/85 backdrop-blur-md flex justify-center">
@@ -223,6 +274,12 @@ function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev }) {
             className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-xs sm:text-sm font-medium transition"
           >
             How to play
+          </button>
+          <button
+            onClick={onReplayTutorial}
+            className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-xs sm:text-sm font-medium transition"
+          >
+            Tutorial
           </button>
           <button
             onClick={onOpenCredits}
@@ -287,6 +344,46 @@ function RetireModal({ open, sigilsEarned, sigilTarget, onConfirm, onCancel }) {
   )
 }
 
+// Destructive: starting the tutorial wipes the current run. Confirm
+// before nuking progress.
+function TutorialReplayModal({ open, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+      onClick={onCancel}
+    >
+      <div
+        className="panel max-w-md w-full p-6 sm:p-8 my-4 sm:my-auto relative shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="font-display text-rune text-2xl mb-1">Replay the tutorial?</h2>
+        <p className="text-[12px] text-slate-500 mb-4">
+          Press <span className="font-mono text-slate-300">Esc</span> or click outside to cancel.
+        </p>
+        <p className="text-sm text-slate-300 leading-snug mb-2">
+          A new run will start with the walkthrough. Your current run, including
+          sigils, boons, and forge edits, will be lost.
+        </p>
+        <div className="flex items-center justify-end gap-2 mt-6">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-sm font-medium transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-md bg-gradient-to-b from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 text-stone-950 text-sm font-medium border border-amber-700/80"
+          >
+            Start tutorial
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SigilTracker({ count, target }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -338,7 +435,9 @@ function SanctuaryView({ game, setGame }) {
   // Exactly one panel renders in the action slot (or none, when the
   // player is idle and ready to descend).
   let actionSlot = null
-  if (isOpeningVisit) {
+  if (game.tutorial) {
+    actionSlot = <TutorialIntroPanel />
+  } else if (isOpeningVisit) {
     actionSlot = <RulesInlinePanel />
   } else if (needsBoon) {
     actionSlot = (
@@ -1437,6 +1536,16 @@ function DescentView({ game, setGame }) {
     .map(id => getTheme(id)?.name)
     .filter(Boolean)
 
+  // Tutorial cue: recommends one card per turn based on game state.
+  // Recomputes whenever the room or weapon binding changes. Stops
+  // recommending (and hides hover tips) once the player has done
+  // every action the walkthrough exists to teach.
+  const tutorialActive = game.tutorial && !tutorialAllLessonsDone(game)
+  const tutorialCue = useMemo(
+    () => (tutorialActive ? computeTutorialCue(game) : null),
+    [tutorialActive, game]
+  )
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 animate-fade-in items-start">
       {introOpen && (
@@ -1464,6 +1573,24 @@ function DescentView({ game, setGame }) {
               Deck <span className="font-mono text-slate-300">{game.deck.length}</span> remain
             </div>
           </div>
+          {game.tutorial && (
+            tutorialActive ? (
+              <div className="mb-3 panel panel-warm p-3 text-[12px] text-slate-300 leading-snug space-y-1">
+                <div>
+                  <span className="text-rune font-semibold uppercase text-[10px] tracking-[0.2em] mr-2">Tutorial</span>
+                  The glowing card is the recommended next move. Hover any card for an explanation.
+                </div>
+                <div className="text-slate-400 text-[11px]">
+                  If a room looks unwinnable, <span className="text-rune">Flee the room</span> below sends all 4 cards to the bottom of the deck and deals 4 fresh. You can't flee twice in a row.
+                </div>
+              </div>
+            ) : (
+              <div className="mb-3 panel p-3 text-[12px] text-slate-400 leading-snug">
+                <span className="text-rune font-semibold uppercase text-[10px] tracking-[0.2em] mr-2">Tutorial</span>
+                Lessons complete. Finish the walk on your own; the next descent is The Quiet.
+              </div>
+            )
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 justify-items-center">
             {game.room.map((c, i) => {
               let weaponDamage = null
@@ -1479,6 +1606,8 @@ function DescentView({ game, setGame }) {
               // The player has already committed once the reveal starts, so
               // suppress the bare-hands alternate to avoid implying a choice.
               const showBare = weaponDamage !== null && !themeIronBones && revealing !== i
+              const isRecommended = tutorialActive && tutorialCue && c?.id === tutorialCue.recommendedId && revealing !== i
+              const tip = tutorialActive && c ? tutorialTipFor(game, c) : null
               return (
                 <CardSlot
                   key={i}
@@ -1488,19 +1617,41 @@ function DescentView({ game, setGame }) {
                   onBareHands={showBare ? () => onCardBare(i) : null}
                   weaponDamage={weaponDamage}
                   bareDamage={bareDamage}
+                  recommended={isRecommended}
+                  tutorialTip={tip}
                 />
               )
             })}
           </div>
 
           <div className="mt-4 flex justify-center">
-            <button
-              onClick={onFlee}
-              disabled={!game.canFlee}
-              className="px-6 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium border border-stone-700 transition"
-            >
-              Flee the room
-            </button>
+            <div className="group relative">
+              {tutorialCue?.recommendFlee && (
+                <div
+                  className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 text-rune text-2xl animate-bounce pointer-events-none drop-shadow-[0_0_6px_rgba(251,191,36,0.75)]"
+                  aria-hidden="true"
+                >
+                  ▼
+                </div>
+              )}
+              <button
+                onClick={onFlee}
+                disabled={!game.canFlee}
+                className={`px-6 py-2.5 rounded-md bg-stone-800 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium border border-stone-700 transition ${tutorialCue?.recommendFlee ? 'tutorial-recommended' : ''}`}
+              >
+                Flee the room
+              </button>
+              {tutorialActive && (
+                <div
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-30 w-64 panel p-2.5 text-[11px] leading-snug text-slate-200 text-left opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-150 shadow-2xl border border-rune/40"
+                  role="tooltip"
+                >
+                  {game.canFlee
+                    ? 'Sends all 4 cards to the bottom of the deck and deals a fresh 4 from the top. No damage. Cooldown after: you must clear a fresh room first.'
+                    : "Disabled. You just fled — clear a fresh room before fleeing again."}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
@@ -1663,7 +1814,102 @@ function ConditionsPanel({ game, theme }) {
   )
 }
 
-function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal }) {
+// Tutorial: which card in the current room should the player consider
+// next? Priority is intentionally simple so the suggestion is
+// predictable: pick up a weapon if you don't have one, swing at the
+// smallest usable monster, take a new weapon when locked, sip a
+// potion if hurt, otherwise just play whatever's left.
+//
+// If the room is genuinely stuck (locked monsters present, no new
+// weapon to take, no useful potion) and the player can flee, the cue
+// returns `recommendFlee: true` instead of a card id. The Flee button
+// gets the highlight in that case.
+function computeTutorialCue(game) {
+  const room = game.room.filter(Boolean)
+  if (room.length === 0) return { recommendedId: null, recommendFlee: false }
+
+  const weapon = game.weapon
+  const weaponInRoom = room.find(c => isWeapon(c))
+  const monsters = room.filter(c => isMonster(c))
+  const potions = room.filter(c => isPotion(c))
+
+  const usableMonsters = monsters.filter(m => {
+    if (!weapon) return false
+    if (!weapon.lastSlain) return true
+    return m.rank <= weapon.lastSlain.rank
+  })
+
+  const lockedMonsters = weapon && weapon.lastSlain
+    ? monsters.filter(m => m.rank > weapon.lastSlain.rank)
+    : []
+  const potionUseful = potions.length > 0
+    && game.hp < game.maxHp
+    && game.potionsUsedThisRoom === 0
+
+  // Flee scenario: the room has monsters above the current binding,
+  // there's no new weapon in the room to reset the binding, and a
+  // potion wouldn't change the situation. Killing a small usable
+  // monster here would only drop the binding further. Send the room
+  // back into the deck and try fresh cards.
+  if (
+    weapon
+    && lockedMonsters.length > 0
+    && !weaponInRoom
+    && !potionUseful
+    && game.canFlee
+  ) {
+    return { recommendedId: null, recommendFlee: true }
+  }
+
+  let recommendedId = null
+  if (!weapon && weaponInRoom) {
+    recommendedId = weaponInRoom.id
+  } else if (usableMonsters.length > 0) {
+    const ordered = [...usableMonsters].sort((a, b) => a.rank - b.rank)
+    recommendedId = ordered[0].id
+  } else if (monsters.length > 0 && weaponInRoom) {
+    // Locked weapon, take a new one
+    recommendedId = weaponInRoom.id
+  } else if (potions.length > 0 && game.hp < game.maxHp && game.potionsUsedThisRoom === 0) {
+    recommendedId = potions[0].id
+  } else if (monsters.length > 0) {
+    const ordered = [...monsters].sort((a, b) => a.rank - b.rank)
+    recommendedId = ordered[0].id
+  } else if (room.length > 0) {
+    recommendedId = room[0].id
+  }
+  return { recommendedId, recommendFlee: false }
+}
+
+// Per-card hover tip for the tutorial. Reads current game state so
+// the explanation reflects what will actually happen if the player
+// clicks (e.g. "locked, take a new weapon" vs "swing, binds at 4").
+function tutorialTipFor(game, card) {
+  if (isWeapon(card)) {
+    if (!game.weapon) return 'Pick up the weapon. You equip it and can swing at monsters.'
+    return 'Replaces your current weapon. The new one is fresh, swings at anything until its first kill.'
+  }
+  if (isPotion(card)) {
+    if (game.potionsUsedThisRoom > 0) {
+      return `Wasted this room. Only the first potion per room heals.`
+    }
+    return `Heals ${card.rank} HP (capped at ${game.maxHp}).`
+  }
+  if (isMonster(card)) {
+    if (!game.weapon) {
+      return `Bare hands: take the full ${card.rank} damage to HP.`
+    }
+    const bound = game.weapon.lastSlain?.rank
+    if (bound !== undefined && card.rank > bound) {
+      return `Locked. Your weapon binds at ${bound}, can't swing at ${card.rank}. Use Bare hands (full damage) or take a new weapon to reset.`
+    }
+    const damage = Math.max(0, card.rank - game.weapon.rank)
+    return `Swing for ${damage} damage. After the kill, the weapon binds at ${card.rank}.`
+  }
+  return null
+}
+
+function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal, recommended, tutorialTip }) {
   if (!card) {
     return (
       <div className="aspect-[2/3] w-full max-w-[240px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
@@ -1680,11 +1926,19 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal
   const previewIcon = willUseWeapon ? '⚔' : '✊'
 
   return (
-    <div className="w-full max-w-[240px] flex flex-col">
+    <div className="group relative w-full max-w-[240px] flex flex-col">
+      {recommended && (
+        <div
+          className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 text-rune text-2xl animate-bounce pointer-events-none drop-shadow-[0_0_6px_rgba(251,191,36,0.75)]"
+          aria-hidden="true"
+        >
+          ▼
+        </div>
+      )}
       <button
         onClick={reveal ? undefined : onClick}
         disabled={reveal}
-        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-3 flex flex-col text-left transition-all shadow-md ${reveal ? 'animate-card-reveal cursor-default ring-2 ring-rune/60' : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)]'}`}
+        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-3 flex flex-col text-left transition-all shadow-md ${reveal ? 'animate-card-reveal cursor-default ring-2 ring-rune/60' : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)]'} ${recommended ? 'tutorial-recommended' : ''}`}
       >
         <div className={`text-2xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
@@ -1721,6 +1975,14 @@ function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal
             </span>
           )}
         </button>
+      )}
+      {tutorialTip && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-30 w-56 panel p-2.5 text-[11px] leading-snug text-slate-200 text-left opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none transition-opacity duration-150 shadow-2xl border border-rune/40"
+          role="tooltip"
+        >
+          {tutorialTip}
+        </div>
       )}
     </div>
   )
@@ -1866,7 +2128,7 @@ function OutcomeView({ game, setGame }) {
       </div>
 
       <button
-        onClick={() => setGame(createRun())}
+        onClick={() => setGame(freshRun())}
         className={`px-10 py-4 rounded-md font-display text-lg tracking-[0.2em] transition ${
           won
             ? 'bg-gradient-to-b from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 border border-amber-600/80 shadow-[0_0_24px_-6px_rgba(251,191,36,0.6)]'
@@ -1977,19 +2239,18 @@ function RulesContentBrief() {
 
         <RuleSection title="Rooms">
           <RuleRow term="Each room">4 cards. Play <span className="text-parchment font-semibold">3 of them</span> in any order, then the room refills.</RuleRow>
-          <RuleRow term="Carry-over">The 4th card stays for the next room.</RuleRow>
           <RuleRow term="Flee">All 4 cards to the bottom, deal a fresh 4. Can't flee twice in a row.</RuleRow>
         </RuleSection>
 
         <RuleSection title="Damage">
-          <RuleRow term="With weapon"><span className="font-mono text-slate-300"> Damage equal to monster rank − weapon rank</span></RuleRow>
+          <RuleRow term="With weapon"> Damage equal to monster rank − weapon rank</RuleRow>
           <RuleRow term="Bare hands">Full monster rank, straight to your HP.</RuleRow>
         </RuleSection>
 
         <RuleSection title="Weapon binding">
-          <RuleRow term="Fresh">Swings at any monster.</RuleRow>
-          <RuleRow term="After a kill">Binds to that rank. Above it, only <span className="text-rune">Bare hands</span>.</RuleRow>
-          <RuleRow term="New weapon">Binding resets.</RuleRow>
+          <RuleRow term="Fresh">Can swing at any monster.</RuleRow>
+          <RuleRow term="After a kill">Binds to that rank. Above bound rank?: must <span className="text-rune">Bare hands</span>.</RuleRow>
+          <RuleRow term="New weapon">Replaces current weapon and binding resets.</RuleRow>
         </RuleSection>
       </div>
     </div>
@@ -2088,6 +2349,29 @@ function RulesContentFull() {
         <RuleRow term="Weapon">Carries over, arrives rested (binding cleared).</RuleRow>
       </RuleSection>
     </div>
+  )
+}
+
+// Shown in the sanctuary action slot when game.tutorial is true (the
+// player's first ever run). Replaces RulesInlinePanel. Lets them know
+// what's about to happen before the Descend button takes them into the
+// curated walkthrough.
+function TutorialIntroPanel() {
+  return (
+    <section className="panel panel-warm p-5 space-y-3">
+      <div className="text-center">
+        <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200/70">Before The Quiet</div>
+        <h2 className="font-display text-rune text-xl mt-1">A short walk</h2>
+      </div>
+      <p className="text-[13px] text-slate-300 leading-snug">
+        A 22-card walkthrough. You'll be pointed to a recommended action each
+        step, with a hover tip on every card. Somewhere in the middle the room
+        will turn ugly and the Flee button lights up.
+      </p>
+      <p className="text-[12px] text-slate-500">
+        No sigil, no boon. Then The Quiet begins as your first real descent.
+      </p>
+    </section>
   )
 }
 

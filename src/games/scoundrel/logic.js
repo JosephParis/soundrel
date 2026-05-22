@@ -313,19 +313,81 @@ function applyRoomEntryEffects(state, room, firstNewIdx) {
   return { state: next, room: nextRoom, dead: false }
 }
 
+// Hand-curated tutorial deck. 22 cards. Order matters and we skip
+// the shuffle so the tutorial hits each lesson in sequence:
+//
+//   Room 1 (dealt): 5♦ 3♣ 2♥ 7♠
+//     → equip · fight · potion · carryover
+//   Room 2 (carry 7♠ + 6♦ 4♣ 5♥)
+//     → replace weapon · fight with fresh weapon · heal · carry
+//   Room 3 (carry 4♣ + 9♠ 10♠ 9♣)
+//     → all big monsters above the new binding, no new weapon, no
+//       potion. FLEE is forced; the cue recommends the Flee button.
+//   Post-flee Room (8♦ 8♥ 6♣ 7♥)
+//     → fresh weapon, heal, manageable fight, carry potion
+//   Room 4 (carry + 5♣ 6♥ 7♣) → standard play with the new blade
+//   Room 5 (carry + 7♦ 8♠ 4♥) → another replacement opportunity
+//   Room 6 (carry + 5♠ 10♣ ...) → tail. Cycled-back 4♣/9♠/10♠/9♣
+//     reappear here when the player's binding is high enough to
+//     handle (or at least eat) them.
+function buildTutorialDeck() {
+  return [
+    // Room 1
+    { suit: DIAMOND, rank: 5, id: 'tut_d5' },
+    { suit: CLUB,    rank: 3, id: 'tut_c3' },
+    { suit: HEART,   rank: 2, id: 'tut_h2' },
+    { suit: SPADE,   rank: 7, id: 'tut_s7' },
+    // Room 2
+    { suit: DIAMOND, rank: 6, id: 'tut_d6' },
+    { suit: CLUB,    rank: 4, id: 'tut_c4' },
+    { suit: HEART,   rank: 5, id: 'tut_h5' },
+    // Room 3 (forces flee)
+    { suit: SPADE,   rank: 9,  id: 'tut_s9' },
+    { suit: SPADE,   rank: 10, id: 'tut_s10' },
+    { suit: CLUB,    rank: 9,  id: 'tut_c9' },
+    // Post-flee deal
+    { suit: DIAMOND, rank: 8, id: 'tut_d8' },
+    { suit: HEART,   rank: 8, id: 'tut_h8' },
+    { suit: CLUB,    rank: 6, id: 'tut_c6' },
+    { suit: HEART,   rank: 7, id: 'tut_h7' },
+    // Room 4
+    { suit: CLUB,    rank: 5, id: 'tut_c5' },
+    { suit: HEART,   rank: 6, id: 'tut_h6' },
+    { suit: CLUB,    rank: 7, id: 'tut_c7' },
+    // Room 5
+    { suit: DIAMOND, rank: 7, id: 'tut_d7' },
+    { suit: SPADE,   rank: 8, id: 'tut_s8' },
+    { suit: HEART,   rank: 4, id: 'tut_h4' },
+    // Tail
+    { suit: SPADE,   rank: 5,  id: 'tut_s5' },
+    { suit: CLUB,    rank: 10, id: 'tut_c10' },
+  ]
+}
+
 // -- Run lifecycle ------------------------------------------------------
 
-export function createRun(rng = Math.random) {
+export function createRun(rng = Math.random, options = {}) {
   // On the very first sanctuary visit (before descent 1) there is no Boon
   // offer and no Forge. Descent 1 of every run runs under "The Quiet", a
   // friendly warm-up theme that gives +10 max HP. Tier-1 themes start at
   // descent 2.
-  const nextTheme = 'the_quiet'
+  //
+  // When `tutorial` is requested, the player walks a curated
+  // descent first. Tutorial completion: no sigil, no boon, then The
+  // Quiet starts as normal.
+  const { tutorial = false } = options
+  const nextTheme = tutorial ? 'tutorial' : 'the_quiet'
 
   return {
     phase: 'sanctuary',
     sigilsEarned: 0,
     sigilTarget: SIGIL_TARGET,
+    tutorial,
+    // Set of tutorial lessons the player has completed. Used by the
+    // UI to decide when to stop recommending actions and showing
+    // hover tips. Possible values: 'equip', 'fight', 'potion',
+    // 'replace', 'barehands', 'flee'.
+    tutorialLessons: [],
     boons: [],
     strikes: [],
     transmutes: {},
@@ -384,8 +446,18 @@ export function descend(state) {
   const themeChildren = state.nextThemeChildren
   const themes = themesFor(themeId, themeChildren)
 
-  const { deck: builtDeck, log: themeLog } = buildDescentDeck(state, themeId, themeChildren, state.rng)
-  const deck = builtDeck.slice()
+  // Tutorial uses a hand-curated, unshuffled deck. Everything else
+  // (theme effects, shuffle, etc) is skipped so the lesson hits each
+  // card in the intended order.
+  let deck, themeLog
+  if (state.tutorial) {
+    deck = buildTutorialDeck()
+    themeLog = []
+  } else {
+    const built = buildDescentDeck(state, themeId, themeChildren, state.rng)
+    deck = built.deck.slice()
+    themeLog = built.log
+  }
   const roomSize = getRoomSize(themes)
   const room = deck.splice(0, roomSize)
 
@@ -582,7 +654,28 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
   if (dmgResult.dead) return dmgResult.state
   next = dmgResult.state
 
+  next = markTutorialLesson(next, weaponUsed ? 'fight' : 'barehands')
+
   return checkRefillAndComplete(next)
+}
+
+// -- Tutorial lesson tracking -----------------------------------------
+// Set of actions the curated walkthrough is designed to teach. Once
+// the player has done all of these (in any order, across any rooms),
+// the UI stops pointing at things and hides the hover tips.
+export const TUTORIAL_LESSONS = ['equip', 'fight', 'potion', 'replace', 'barehands', 'flee']
+
+function markTutorialLesson(state, lesson) {
+  if (!state.tutorial) return state
+  const current = state.tutorialLessons || []
+  if (current.includes(lesson)) return state
+  return { ...state, tutorialLessons: [...current, lesson] }
+}
+
+export function tutorialAllLessonsDone(state) {
+  if (!state.tutorial) return false
+  const done = new Set(state.tutorialLessons || [])
+  return TUTORIAL_LESSONS.every(l => done.has(l))
 }
 
 // -- Card plays ---------------------------------------------------------
@@ -629,6 +722,7 @@ function playPotion(state, index, card) {
     next.hp = next.hp + healed
     const note = bitterBrew ? 'bitter, ' : ''
     next = appendLog(next, `Drank ${fmt(card)}, ${note}restored ${healed} HP.`)
+    next = markTutorialLesson(next, 'potion')
   } else {
     // Overflow path: Alchemist and Field Surgeon stack, each adds its bit.
     const alchAmt = hasBoon(next, 'alchemist') ? Math.ceil(card.rank / 2) : 0
@@ -679,6 +773,7 @@ function playWeapon(state, index, card) {
     swapNote = ''
   }
 
+  const wasArmed = !!state.weapon
   let next = {
     ...state,
     room,
@@ -690,6 +785,7 @@ function playWeapon(state, index, card) {
     ? ` (rusty, bites as a ${rankLabel(effectiveRank)})`
     : ''
   next = appendLog(next, `Took up the ${rankLabel(card.rank)}♦${rustNote}${swapNote}.`)
+  next = markTutorialLesson(next, wasArmed ? 'replace' : 'equip')
 
   return checkRefillAndComplete(next)
 }
@@ -784,9 +880,37 @@ export function retireRun(state) {
 }
 
 function endDescentVictory(state) {
-  const newSigils = state.sigilsEarned + 1
   const carriedWeapon = state.weapon ? { rank: state.weapon.rank, originalRank: state.weapon.originalRank } : null
   const carriedSpareWeapon = state.spareWeapon ? { rank: state.spareWeapon.rank, originalRank: state.spareWeapon.originalRank } : null
+
+  // Tutorial completion: no sigil earned, no boon offer, no forge.
+  // Drop the tutorial flag, queue The Quiet, return to sanctuary as a
+  // normal opening-style visit (boonChosen=true since no boon to pick).
+  if (state.tutorial) {
+    return appendLog(
+      {
+        ...state,
+        tutorial: false,
+        phase: 'sanctuary',
+        carriedWeapon,
+        carriedSpareWeapon,
+        nextTheme: 'the_quiet',
+        nextThemeChildren: null,
+        boonOffers: [],
+        boonChosen: true,
+        forgeOpen: false,
+        forgeUsed: false,
+        forgeView: null,
+        deck: [],
+        room: [],
+        theme: null,
+        themeChildren: null,
+      },
+      'The walk is done. The Quiet waits below.'
+    )
+  }
+
+  const newSigils = state.sigilsEarned + 1
 
   if (newSigils >= state.sigilTarget) {
     return appendLog(
@@ -948,6 +1072,7 @@ export function fleeRoom(state) {
   if (hasBoon(next, 'cowards_reward')) {
     next = appendLog(next, `Coward's Reward: opening swing banked at +${cowardsCharge}.`)
   }
+  next = markTutorialLesson(next, 'flee')
 
   const entry = applyRoomEntryEffects(next, next.room, 0)
   if (entry.dead) return entry.state

@@ -23,6 +23,15 @@ function sampleSuit(deck, suit, count, rng, tag, filter) {
 }
 
 export const THEMES = {
+  // Tutorial descent. Only assigned by createRun({ tutorial: true })
+  // on a player's first run. Not in any tier pool. The deck is built
+  // manually in logic.js buildTutorialDeck and the shuffle is skipped.
+  tutorial: {
+    id: 'tutorial',
+    name: 'The walk',
+    description: 'A short walkthrough.',
+  },
+
   // The opening-descent theme. Assigned to descent 1 of every run by
   // createRun(); not in any tier pool, so the dungeon never rolls it.
   the_quiet: {
