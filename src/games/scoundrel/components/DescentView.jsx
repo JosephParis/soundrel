@@ -144,6 +144,12 @@ export function DescentView({ game, setGame }) {
               const isRecommended = tutorialActive && tutorialCue && c?.id === tutorialCue.recommendedId && revealing !== i
               const tip = isRecommended && c ? tutorialTipFor(game, c) : null
               const blocked = cueHasTarget && !!c && !isRecommended
+              // The recommended action is to swing this monster, so the
+              // bare-hands shortcut on the same card is the wrong move.
+              const bareBlocked = isRecommended && !!c && isMonster(c) && tutorialCue?.recommendBare === false
+              // The recommended action IS the bare-hands button: glow it so
+              // the player's eye finds the right click.
+              const bareRecommended = isRecommended && !!c && isMonster(c) && tutorialCue?.recommendBare === true
               return (
                 <CardSlot
                   key={i}
@@ -156,6 +162,8 @@ export function DescentView({ game, setGame }) {
                   recommended={isRecommended}
                   tutorialTip={tip}
                   blocked={blocked}
+                  bareBlocked={bareBlocked}
+                  bareRecommended={bareRecommended}
                 />
               )
             })}
@@ -271,6 +279,31 @@ function computeTutorialCue(game) {
     && game.hp < game.maxHp
     && game.potionsUsedThisRoom === 0
 
+  // Tutorial second bare-hands lesson, hand-curated for the
+  // {7♦, 8♠, 10♦} room. The standard priorities would either skip 7♦
+  // (too weak to unlock 8♠) or swing 8♠ with a fresh weapon (1 damage,
+  // binds at 8 and re-locks the 10♣ waiting in the deck). Force the
+  // lesson: take up 7♦, then bare-hand 8♠ to keep that swing fresh
+  // for the bigger fight ahead.
+  const lessons = game.tutorialLessons || []
+  if (game.tutorial
+      && lessons.includes('barehands')
+      && !lessons.includes('barehands_choice')) {
+    const tutD7 = room.find(c => c?.id === 'tut_d7')
+    const tutS8 = room.find(c => c?.id === 'tut_s8')
+    // Step 1: still wielding the bound weapon, with both pieces in the
+    // room. Send the player to 7♦ instead of letting the standard cue
+    // walk past it or jump straight to 10♦.
+    if (tutD7 && tutS8 && weapon && weapon.lastSlain && weapon.rank !== 7) {
+      return { recommendedId: tutD7.id, recommendFlee: false, recommendBare: false }
+    }
+    // Step 2: 7♦ is gone (picked up), 8♠ remains. Override the case-3
+    // "swing 8♠ with fresh weapon" instinct and direct the bare-hand.
+    if (tutS8 && weapon && weapon.rank === 7 && !weapon.lastSlain) {
+      return { recommendedId: tutS8.id, recommendFlee: false, recommendBare: true }
+    }
+  }
+
   // 1. No weapon yet, one is sitting in the room.
   if (!weapon && weaponInRoom) {
     return { recommendedId: weaponInRoom.id, recommendFlee: false }
@@ -295,7 +328,7 @@ function computeTutorialCue(game) {
   // weapon's headroom.
   if (usableMonsters.length > 0) {
     const biggest = [...usableMonsters].sort((a, b) => b.rank - a.rank)[0]
-    return { recommendedId: biggest.id, recommendFlee: false }
+    return { recommendedId: biggest.id, recommendFlee: false, recommendBare: false }
   }
 
   // 4. Heal. Pick the smallest potion that fully covers the missing HP
@@ -315,7 +348,7 @@ function computeTutorialCue(game) {
     const smallestLocked = [...lockedMonsters].sort((a, b) => a.rank - b.rank)[0]
     // Can't flee: must bare-hand the smallest.
     if (!game.canFlee) {
-      return { recommendedId: smallestLocked.id, recommendFlee: false }
+      return { recommendedId: smallestLocked.id, recommendFlee: false, recommendBare: true }
     }
     // Multiple locked monsters, or one too big to safely absorb -> flee.
     const tooBig = smallestLocked.rank > Math.floor(game.hp / 2)
@@ -323,7 +356,7 @@ function computeTutorialCue(game) {
       return { recommendedId: null, recommendFlee: true }
     }
     // One small locked monster, can safely bare-hand it.
-    return { recommendedId: smallestLocked.id, recommendFlee: false }
+    return { recommendedId: smallestLocked.id, recommendFlee: false, recommendBare: true }
   }
 
   // 7. No strategic move left (e.g., leftover wasted potions, downgrade
@@ -335,8 +368,18 @@ function computeTutorialCue(game) {
 // reflects what will actually happen if the player clicks (e.g.
 // "locked, take a new weapon" vs "swing, binds at 4").
 function tutorialTipFor(game, card) {
+  const lessons = game.tutorialLessons || []
+  const inBareChoiceSetup = game.tutorial
+    && lessons.includes('barehands')
+    && !lessons.includes('barehands_choice')
   if (isWeapon(card)) {
     if (!game.weapon) return 'Pick up the weapon. You equip it and can swing at monsters.'
+    // Tutorial setup for the second bare-hands lesson: prefer the smaller
+    // 7♦ over the optimizer's choice (10♦) so the next lesson stages a
+    // strategic bare-hand instead of a clean swing.
+    if (inBareChoiceSetup && card.id === 'tut_d7') {
+      return "Take up 7♦, not the 10♦. The smaller weapon, but fresh. Resetting the binding matters more than raw rank here; the lesson is the choice that comes next."
+    }
     const lockedAhead = game.room.some(c => c && isMonster(c) && c.rank > (game.weapon.lastSlain?.rank ?? Infinity))
     if (lockedAhead) {
       return 'Replace your weapon. The new one is fresh, swings at anything until its first kill, so use it on the biggest locked monster first.'
@@ -365,6 +408,12 @@ function tutorialTipFor(game, card) {
     const bound = game.weapon.lastSlain?.rank
     if (bound !== undefined && card.rank > bound) {
       return `Your weapon is bound at ${bound}, useless against rank ${card.rank}. Bare hands take the full ${card.rank} damage.`
+    }
+    // Tutorial: second bare-hands lesson, fired only after the player has
+    // followed the cue to pick up 7♦. With the fresh weapon in hand, the
+    // raw mechanics permit a swing, but the lesson is the strategic trade.
+    if (inBareChoiceSetup && card.id === 'tut_s8' && !game.weapon.lastSlain) {
+      return `You always have the option to bare-hand a monster, and take it's full rank in damage instead of using your weapon.`
     }
     const damage = Math.max(0, card.rank - game.weapon.rank)
     return `Swing. Take ${damage} damage (${card.rank} - ${game.weapon.rank}). After the kill the weapon binds at ${card.rank}; only monsters of that rank or lower can be swung at.`

@@ -105,6 +105,14 @@ export default function Scoundrel() {
     setTutorialReplayOpen(false)
   }
 
+  // Skip the tutorial from the sanctuary intro panel. Marks it
+  // completed so future "begin again" presses also skip, then drops
+  // the player into a real opening run (The Quiet).
+  const skipTutorial = () => {
+    markTutorialCompleted()
+    setGame(createRun(Math.random, { tutorial: false }))
+  }
+
   const confirmRetire = () => {
     setGame(g => retireRun(g))
     setRetireOpen(false)
@@ -136,7 +144,7 @@ export default function Scoundrel() {
         onCancel={() => setTutorialReplayOpen(false)}
       />
       <main className="flex-1 w-full max-w-7xl px-4 sm:px-6 pt-16 sm:pt-20 pb-8">
-        {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} />}
+        {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} onSkipTutorial={skipTutorial} />}
         {game.phase === 'descent' && <DescentView game={game} setGame={setGame} />}
         {(game.phase === 'gameover' || game.phase === 'victory') && (
           <OutcomeView game={game} onBeginAgain={() => setGame(freshRun())} />

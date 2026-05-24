@@ -121,7 +121,7 @@ export function bonusVsSuitFor(state, card) {
 // Set of actions the curated walkthrough is designed to teach. Once
 // the player has done all of these (in any order, across any rooms),
 // the UI stops pointing at things and hides the hover tips.
-export const TUTORIAL_LESSONS = ['equip', 'fight', 'potion', 'replace', 'barehands', 'flee']
+export const TUTORIAL_LESSONS = ['equip', 'fight', 'potion', 'replace', 'barehands', 'barehands_choice', 'flee']
 
 export function markTutorialLesson(state, lesson) {
   if (!state.tutorial) return state

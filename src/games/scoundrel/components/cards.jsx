@@ -126,7 +126,7 @@ export function ConditionsPanel({ game, theme }) {
 
 // -- Card slot ---------------------------------------------------------
 
-export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal, recommended, tutorialTip, blocked }) {
+export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal, recommended, tutorialTip, blocked, bareBlocked, bareRecommended }) {
   if (!card) {
     return (
       <div className="aspect-[2/3] w-full max-w-[240px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
@@ -142,16 +142,21 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
   const previewDesc = !monster ? null : willUseWeapon ? weaponDamage : bareDamage
   const previewIcon = willUseWeapon ? '⚔' : '✊'
 
-  const cardDisabled = reveal || blocked
+  // When the lesson points at the bare-hands button AND the card-click
+  // would actually swing (weapon usable), forbid the swing. If the
+  // weapon is already locked out, clicking the card auto-bare-hands,
+  // which is the same outcome as the button: don't grey it.
+  const cardLockedForBare = !!bareRecommended && weaponDamage !== null
+  const cardDisabled = reveal || blocked || cardLockedForBare
   const cardInteractive = reveal
     ? 'animate-card-reveal cursor-default ring-2 ring-rune/60'
-    : blocked
+    : (blocked || cardLockedForBare)
       ? 'cursor-not-allowed grayscale opacity-40'
       : 'hover:-translate-y-1 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.6)]'
 
   return (
     <div className="group relative w-full max-w-[240px] flex flex-col">
-      {recommended && (
+      {recommended && !bareRecommended && (
         <div
           className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 text-rune text-2xl animate-bounce pointer-events-none drop-shadow-[0_0_6px_rgba(251,191,36,0.75)]"
           aria-hidden="true"
@@ -162,7 +167,7 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
       <button
         onClick={cardDisabled ? undefined : onClick}
         disabled={cardDisabled}
-        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-3 flex flex-col text-left transition-all shadow-md ${cardInteractive} ${recommended ? 'tutorial-recommended' : ''}`}
+        className={`aspect-[2/3] rounded-lg border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-3 flex flex-col text-left transition-all shadow-md ${cardInteractive} ${(recommended && !bareRecommended) ? 'tutorial-recommended' : ''}`}
       >
         <div className={`text-2xl font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
           {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
@@ -188,10 +193,19 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
         </div>
       </button>
       {onBareHands && (
+        <div className="relative mt-2">
+          {bareRecommended && (
+            <div
+              className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 text-rune text-2xl animate-bounce pointer-events-none drop-shadow-[0_0_6px_rgba(251,191,36,0.75)]"
+              aria-hidden="true"
+            >
+              ▼
+            </div>
+          )}
         <button
-          onClick={blocked ? undefined : onBareHands}
-          disabled={blocked}
-          className={`mt-2 w-full py-2.5 px-3 rounded-md bg-stone-800 text-parchment text-sm font-medium border border-stone-700 transition flex flex-col items-center ${blocked ? 'cursor-not-allowed opacity-40' : 'hover:bg-stone-700'}`}
+          onClick={(blocked || bareBlocked) ? undefined : onBareHands}
+          disabled={blocked || bareBlocked}
+          className={`w-full py-2.5 px-3 rounded-md bg-stone-800 text-parchment text-sm font-medium border border-stone-700 transition flex flex-col items-center ${(blocked || bareBlocked) ? 'cursor-not-allowed opacity-40' : 'hover:bg-stone-700'} ${bareRecommended ? 'tutorial-recommended' : ''}`}
         >
           <span>✊ Bare hands · take {bareDamage.value}</span>
           {bareDamage.parts.length > 1 && (
@@ -200,6 +214,7 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
             </span>
           )}
         </button>
+        </div>
       )}
       {tutorialTip && (
         <div

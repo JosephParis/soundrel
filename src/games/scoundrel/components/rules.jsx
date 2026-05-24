@@ -7,8 +7,7 @@ export function TutorialIntroPanel() {
   return (
     <section className="panel panel-warm p-5 space-y-3">
       <div className="text-center">
-        <div className="text-[11px] uppercase tracking-[0.3em] text-amber-200/70">Before The Quiet</div>
-        <h2 className="font-display text-rune text-2xl mt-1">A short walk</h2>
+        <h2 className="font-display text-rune text-2xl mt-1">Tutorial</h2>
       </div>
       <p className="text-[15px] text-slate-300 leading-relaxed">
         A 22-card walkthrough. You'll be pointed to a recommended action each

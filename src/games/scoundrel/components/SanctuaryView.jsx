@@ -9,7 +9,7 @@ import { BoonOfferPanel, RunStatePanel, DeckPeekButton, DeckModal, LoadoutPanel 
 import { ForgePromptPanel, StrikeView, TransmuteView, HeftView } from './forge'
 import { RulesInlinePanel, TutorialIntroPanel } from './rules'
 
-export function SanctuaryView({ game, setGame }) {
+export function SanctuaryView({ game, setGame, onSkipTutorial }) {
   const isOpeningVisit = game.sigilsEarned === 0
   const needsBoon = !isOpeningVisit && !game.boonChosen && game.boonOffers.length > 0
   const forgePending = game.forgeOpen && !game.forgeUsed
@@ -110,11 +110,21 @@ export function SanctuaryView({ game, setGame }) {
         {actionSlot}
 
         {showDescend && (
-          <DescendAction
-            onDescend={() => setGame(g => descend(g))}
-            disabled={false}
-            reason={null}
-          />
+          <div className="relative">
+            <DescendAction
+              onDescend={() => setGame(g => descend(g))}
+              disabled={false}
+              reason={null}
+            />
+            {game.tutorial && onSkipTutorial && (
+              <button
+                onClick={onSkipTutorial}
+                className="absolute right-0 bottom-0 px-4 py-2 rounded-md border border-stone-700 hover:border-stone-500 text-slate-400 hover:text-slate-200 text-sm font-medium transition"
+              >
+                Skip tutorial
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

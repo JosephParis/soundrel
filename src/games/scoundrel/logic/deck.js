@@ -94,10 +94,15 @@ export function buildDescentDeck(state, themeId, themeChildren, rng) {
 //     Replace 8♦, swing 6♣. Two potions remain at full HP — cue goes
 //     silent, player plays them through.
 //   Room 5 (refill 5♣ 6♥ 7♣ + carryover): 7♣ is locked at binding 6.
-//     Swing 5♣, bare-hand 7♣ (lone locked, safe to absorb), drink 7♥
-//     (heals exactly back to full). -> bare hands.
-//   Tail (7♦ 8♠ 4♥ 5♠ 10♣ + cycled-back cards): lessons are done by
-//     this point. The cue stops; the player finishes the walk freely.
+//     Swing 5♣ (binds 5), bare-hand 7♣ (lone locked, safe to absorb),
+//     drink 7♥ (heals exactly back to full). -> bare hands.
+//   Room 6 (refill 7♦ 8♠ 10♦ + carryover): bound weapon vs 8♠. A
+//     tutorial-specific override in computeTutorialCue stages a two-
+//     step lesson: replace into 7♦ (smaller than 10♦ on purpose), then
+//     bare-hand 8♠ to keep that fresh swing for the bigger monster
+//     waiting in the deck. -> replace + bare hands (strategic).
+//   Tail (5♠ 10♣ + cycled-back cards): lessons are done by this point.
+//     The cue stops; the player finishes the walk freely.
 export function buildTutorialDeck() {
   return [
     // Room 1

@@ -252,7 +252,15 @@ function applyMonsterFight(state, monsterCard, index, useWeapon) {
   if (dmgResult.dead) return dmgResult.state
   next = dmgResult.state
 
-  next = markTutorialLesson(next, weaponUsed ? 'fight' : 'barehands')
+  if (weaponUsed) {
+    next = markTutorialLesson(next, 'fight')
+  } else {
+    // First bare-hand teaches the mechanic (weapon locked, eat full rank).
+    // The second teaches the choice: even with alternatives in the room,
+    // bare hands can be the right trade.
+    const hasBareLesson = (next.tutorialLessons || []).includes('barehands')
+    next = markTutorialLesson(next, hasBareLesson ? 'barehands_choice' : 'barehands')
+  }
 
   return checkRefillAndComplete(next)
 }
