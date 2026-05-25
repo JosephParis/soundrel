@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createRun, retireRun } from './logic'
 import { TopBar, RetireModal, TutorialReplayModal } from './components/TopBar'
 import { CreditsModal, DevModal } from './components/modals'
@@ -6,6 +6,8 @@ import { RulesModal } from './components/rules'
 import { SanctuaryView } from './components/SanctuaryView'
 import { DescentView } from './components/DescentView'
 import { OutcomeView } from './components/OutcomeView'
+import { LoginModal } from './components/LoginModal'
+import { loadUser, signOut as signOutUser } from '../../utils/auth'
 
 // -- Save / load -------------------------------------------------------
 // Bump SAVE_VERSION whenever the shape of game state in logic.js changes
@@ -63,11 +65,22 @@ function freshRun() {
 
 export default function Scoundrel() {
   const [game, setGame] = useState(() => loadSavedGame() || freshRun())
+  const [user, setUser] = useState(() => loadUser())
   const [rulesOpen, setRulesOpen] = useState(false)
   const [retireOpen, setRetireOpen] = useState(false)
   const [creditsOpen, setCreditsOpen] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
   const [tutorialReplayOpen, setTutorialReplayOpen] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+
+  const handleLogin = useCallback((u) => {
+    setUser(u)
+    setLoginOpen(false)
+  }, [])
+
+  const handleSignOut = useCallback(() => {
+    signOutUser(() => setUser(null))
+  }, [])
 
   useEffect(() => {
     saveGame(game)
@@ -86,7 +99,7 @@ export default function Scoundrel() {
   }, [game.tutorial, game.phase])
 
   useEffect(() => {
-    const anyOpen = rulesOpen || retireOpen || creditsOpen || devOpen || tutorialReplayOpen
+    const anyOpen = rulesOpen || retireOpen || creditsOpen || devOpen || tutorialReplayOpen || loginOpen
     if (!anyOpen) return
     const onKey = (e) => {
       if (e.key !== 'Escape') return
@@ -94,11 +107,12 @@ export default function Scoundrel() {
       else if (creditsOpen) setCreditsOpen(false)
       else if (retireOpen) setRetireOpen(false)
       else if (tutorialReplayOpen) setTutorialReplayOpen(false)
+      else if (loginOpen) setLoginOpen(false)
       else if (rulesOpen) setRulesOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [rulesOpen, retireOpen, creditsOpen, devOpen, tutorialReplayOpen])
+  }, [rulesOpen, retireOpen, creditsOpen, devOpen, tutorialReplayOpen, loginOpen])
 
   const confirmReplayTutorial = () => {
     setGame(createRun(Math.random, { tutorial: true }))
@@ -122,11 +136,14 @@ export default function Scoundrel() {
     <div className="min-h-screen text-parchment flex flex-col items-center">
       <TopBar
         game={game}
+        user={user}
         onOpenRules={() => setRulesOpen(true)}
         onRetire={() => setRetireOpen(true)}
         onOpenCredits={() => setCreditsOpen(true)}
         onOpenDev={() => setDevOpen(true)}
         onReplayTutorial={() => setTutorialReplayOpen(true)}
+        onOpenLogin={() => setLoginOpen(true)}
+        onSignOut={handleSignOut}
       />
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <RetireModal
@@ -142,6 +159,11 @@ export default function Scoundrel() {
         open={tutorialReplayOpen}
         onConfirm={confirmReplayTutorial}
         onCancel={() => setTutorialReplayOpen(false)}
+      />
+      <LoginModal
+        open={loginOpen}
+        onLogin={handleLogin}
+        onClose={() => setLoginOpen(false)}
       />
       <main className="flex-1 w-full max-w-7xl px-4 sm:px-6 pt-16 sm:pt-20 pb-8">
         {game.phase === 'sanctuary' && <SanctuaryView game={game} setGame={setGame} onSkipTutorial={skipTutorial} />}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, onReplayTutorial }) {
+export function TopBar({ game, user, onOpenRules, onRetire, onOpenCredits, onOpenDev, onReplayTutorial, onOpenLogin, onSignOut }) {
   const runActive = game.phase === 'sanctuary' || game.phase === 'descent'
   return (
     <header className="fixed top-0 left-0 right-0 z-30 border-b border-stone-800/80 bg-dungeon/85 backdrop-blur-md flex justify-center">
@@ -25,9 +25,12 @@ export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, 
           </button>
           <OverflowMenu
             runActive={runActive}
+            user={user}
             onRetire={onRetire}
             onOpenCredits={onOpenCredits}
             onOpenDev={onOpenDev}
+            onOpenLogin={onOpenLogin}
+            onSignOut={onSignOut}
           />
         </div>
       </div>
@@ -35,7 +38,7 @@ export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, 
   )
 }
 
-function OverflowMenu({ runActive, onRetire, onOpenCredits, onOpenDev }) {
+function OverflowMenu({ runActive, user, onRetire, onOpenCredits, onOpenDev, onOpenLogin, onSignOut }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -73,8 +76,59 @@ function OverflowMenu({ runActive, onRetire, onOpenCredits, onOpenDev }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-44 rounded-md border border-stone-700 bg-dungeon/95 backdrop-blur-md shadow-2xl overflow-hidden z-40"
+          className="absolute right-0 mt-2 w-56 rounded-md border border-stone-700 bg-dungeon/95 backdrop-blur-md shadow-2xl overflow-hidden z-40"
         >
+          {user ? (
+            <>
+              <div className="px-3 py-2 flex items-center gap-2 border-b border-stone-800">
+                {user.picture ? (
+                  <img
+                    src={user.picture}
+                    alt=""
+                    className="w-6 h-6 rounded-full border border-stone-700"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="w-6 h-6 rounded-full border border-stone-700 bg-stone-800 flex items-center justify-center text-[10px] text-slate-400">
+                    {(user.name || '?').slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] text-parchment truncate">{user.name}</div>
+                  {user.email && (
+                    <div className="text-[10px] text-slate-500 truncate">{user.email}</div>
+                  )}
+                </div>
+              </div>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onSignOut()
+                }}
+                className={itemClass}
+              >
+                <span className="text-slate-400 w-4 text-center">↩</span>
+                <span>Sign out</span>
+              </button>
+              <div className="h-px bg-stone-800" />
+            </>
+          ) : (
+            <>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onOpenLogin()
+                }}
+                className={itemClass}
+              >
+                <span className="text-rune w-4 text-center">↪</span>
+                <span>Log in with Google</span>
+              </button>
+              <div className="h-px bg-stone-800" />
+            </>
+          )}
           <button
             role="menuitem"
             onClick={() => {
