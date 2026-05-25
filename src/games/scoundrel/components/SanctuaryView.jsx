@@ -91,6 +91,8 @@ export function SanctuaryView({ game, setGame, onSkipTutorial }) {
         subtitle={isOpeningVisit
           ? 'You wake in a quiet chamber. The only way out leads down.'
           : 'The chamber is still. Below, the dark waits.'}
+        sigilsEarned={game.sigilsEarned}
+        sigilTarget={game.sigilTarget}
       >
         <div className="panel p-3">
           <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Lifeblood</div>

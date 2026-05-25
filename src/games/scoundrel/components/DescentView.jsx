@@ -102,6 +102,8 @@ export function DescentView({ game, setGame }) {
       <PhaseRail
         title={theme?.name || 'Descent'}
         subtitle={childNames.length > 0 ? childNames.join(' + ') : null}
+        sigilsEarned={game.sigilsEarned}
+        sigilTarget={game.sigilTarget}
       >
         <HpBar hp={game.hp} maxHp={game.maxHp} />
         <WeaponPanel game={game} />

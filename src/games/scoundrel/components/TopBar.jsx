@@ -9,8 +9,6 @@ export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, 
           <span className="font-display text-rune text-sm sm:text-base tracking-[0.25em]">
             SCOUNDREL
           </span>
-          <span className="hidden sm:block text-stone-700">|</span>
-          <SigilTracker count={game.sigilsEarned} target={game.sigilTarget} />
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
@@ -202,28 +200,3 @@ export function TutorialReplayModal({ open, onConfirm, onCancel }) {
   )
 }
 
-function SigilTracker({ count, target }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[10px] sm:text-[11px] uppercase tracking-widest text-slate-500 mr-1 hidden sm:inline">
-        Sigils
-      </span>
-      <div className="flex items-center gap-1">
-        {Array.from({ length: target }).map((_, i) => {
-          const set = i < count
-          return (
-            <span
-              key={i}
-              className={
-                set
-                  ? 'w-2.5 h-2.5 rotate-45 bg-rune shadow-[0_0_8px_rgba(251,191,36,0.7)]'
-                  : 'w-2.5 h-2.5 rotate-45 border border-stone-600'
-              }
-              aria-label={set ? 'sigil set' : 'sigil empty'}
-            />
-          )
-        })}
-      </div>
-    </div>
-  )
-}
