@@ -52,19 +52,20 @@ export const THEMES = {
       const additions = sampleSuit(deck, SPADE, 2, rng, 'crypt', c => c.rank >= 11)
       const hearts = deck.filter(c => c.suit === HEART)
       let result = deck.slice()
-      let removed = null
+      const removals = []
       if (hearts.length > 0) {
-        removed = hearts[Math.floor(rng() * hearts.length)]
+        const removed = hearts[Math.floor(rng() * hearts.length)]
+        removals.push(removed)
         result = result.filter(c => c.id !== removed.id)
       }
       const log = []
       if (additions.length > 0) {
         log.push(`The Crypt added ${joinList(additions.map(fmt))} to the deck.`)
       }
-      if (removed) {
-        log.push(`The Crypt removed ${fmt(removed)} from the deck.`)
+      if (removals.length > 0) {
+        log.push(`The Crypt removed ${joinList(removals.map(fmt))} from the deck.`)
       }
-      return { deck: result.concat(additions), log }
+      return { deck: result.concat(additions), log, additions, removals }
     },
   },
 
@@ -79,7 +80,7 @@ export const THEMES = {
       if (additions.length > 0) {
         log.push(`The Armory added ${joinList(additions.map(fmt))} to the deck.`)
       }
-      return { deck: deck.concat(additions), log }
+      return { deck: deck.concat(additions), log, additions, removals: [] }
     },
   },
 
@@ -103,7 +104,7 @@ export const THEMES = {
       if (additions.length > 0) {
         log.push(`The Apothecary added ${joinList(additions.map(fmt))} to the deck.`)
       }
-      return { deck: deck.concat(additions), log }
+      return { deck: deck.concat(additions), log, additions, removals: [] }
     },
   },
 
@@ -119,7 +120,7 @@ export const THEMES = {
         additions.push({ suit, rank: 2, id: `${suit}2_swarm${i}`, themed: true })
       }
       const log = [`Locust Swarm released ${joinList(additions.map(fmt))} into the deck.`]
-      return { deck: deck.concat(additions), log }
+      return { deck: deck.concat(additions), log, additions, removals: [] }
     },
   },
 
@@ -161,7 +162,7 @@ export const THEMES = {
     id: 'hungry_dark',
     name: 'Hungry Dark',
     description: 'You cannot flee this descent.',
-    tier: 2,
+    tier: 3,
     cannotFlee: true,
   },
 
@@ -185,7 +186,7 @@ export const THEMES = {
     id: 'cracked_blade',
     name: 'The Anvil',
     description: 'Your weapon is no longer bound by rank, but it shatters if it slays a monster of higher rank than itself.',
-    tier: 2,
+    tier: 3,
     crackedBlade: true,
   },
 
@@ -193,7 +194,7 @@ export const THEMES = {
     id: 'the_oath',
     name: 'The Oath',
     description: 'The first new card drawn into each room is face-down until played.',
-    tier: 2,
+    tier: 3,
     oath: true,
   },
 
@@ -213,19 +214,19 @@ export const THEMES = {
     applyToDeck(deck, rng) {
       const weapons = deck.filter(c => c.suit === DIAMOND)
       let result = deck.slice()
-      const removed = []
+      const removals = []
       for (let i = 0; i < 2; i++) {
-        const pool = weapons.filter(w => !removed.find(r => r.id === w.id))
+        const pool = weapons.filter(w => !removals.find(r => r.id === w.id))
         if (pool.length === 0) break
         const pick = pool[Math.floor(rng() * pool.length)]
-        removed.push(pick)
+        removals.push(pick)
         result = result.filter(c => c.id !== pick.id)
       }
       const log = []
-      if (removed.length > 0) {
-        log.push(`The Bog swallowed ${joinList(removed.map(fmt))}.`)
+      if (removals.length > 0) {
+        log.push(`The Bog swallowed ${joinList(removals.map(fmt))}.`)
       }
-      return { deck: result, log }
+      return { deck: result, log, additions: [], removals }
     },
   },
 
@@ -241,7 +242,7 @@ export const THEMES = {
         additions.push({ suit, rank: 14, id: `${suit}14_relic${i}`, themed: true })
       }
       const log = [`The Reliquary unsealed ${joinList(additions.map(fmt))}.`]
-      return { deck: deck.concat(additions), log }
+      return { deck: deck.concat(additions), log, additions, removals: [] }
     },
   },
 
@@ -267,7 +268,7 @@ export const THEMES = {
     id: 'wormwood',
     name: 'Wormwood',
     description: 'One of your Boons is muted this descent.',
-    tier: 3,
+    tier: 2,
     wormwood: true,
   },
 

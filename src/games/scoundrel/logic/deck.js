@@ -57,12 +57,14 @@ export function computeCurrentDeck(state) {
 }
 
 // Themes that modify the deck return either a plain array (the new deck) or
-// an object `{ deck, log }`. Compound themes chain through each child's
-// applyToDeck in order, accumulating log lines.
+// an object `{ deck, log, additions?, removals? }`. Compound themes chain
+// through each child's applyToDeck in order, accumulating log lines and
+// per-theme card changes so the UI can animate exactly what entered/left.
 export function buildDescentDeck(state, themeId, themeChildren, rng) {
   let deck = computeCurrentDeck(state)
   const themes = themesFor(themeId, themeChildren)
   let extraLog = []
+  const changes = []
   for (const theme of themes) {
     if (!theme.applyToDeck) continue
     const result = theme.applyToDeck(deck, rng)
@@ -71,9 +73,14 @@ export function buildDescentDeck(state, themeId, themeChildren, rng) {
     } else {
       deck = result.deck
       extraLog = extraLog.concat(result.log || [])
+      const additions = result.additions || []
+      const removals = result.removals || []
+      if (additions.length > 0 || removals.length > 0) {
+        changes.push({ themeId: theme.id, themeName: theme.name, additions, removals })
+      }
     }
   }
-  return { deck: shuffle(deck, rng), log: extraLog }
+  return { deck: shuffle(deck, rng), log: extraLog, changes }
 }
 
 // Hand-curated tutorial deck. 22 cards. Order matters and we skip

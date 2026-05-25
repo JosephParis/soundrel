@@ -50,6 +50,7 @@ export {
   describeMaxHp,
   describeWeaponStrength,
   describeDamage,
+  describePotion,
   STRIKE_OFFERING_RANGE,
   HEFT_BONUS,
   HEFT_RANK_CAP,

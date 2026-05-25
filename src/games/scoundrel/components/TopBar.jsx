@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+
 export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, onReplayTutorial }) {
   const runActive = game.phase === 'sanctuary' || game.phase === 'descent'
   return (
@@ -11,14 +13,6 @@ export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, 
           <SigilTracker count={game.sigilsEarned} target={game.sigilTarget} />
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {runActive && (
-            <button
-              onClick={onRetire}
-              className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-blood/60 text-slate-400 hover:text-blood text-xs sm:text-sm font-medium transition"
-            >
-              Retire
-            </button>
-          )}
           <button
             onClick={onOpenRules}
             className="px-3 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-300 hover:text-parchment text-xs sm:text-sm font-medium transition"
@@ -31,25 +25,99 @@ export function TopBar({ game, onOpenRules, onRetire, onOpenCredits, onOpenDev, 
           >
             Tutorial
           </button>
-          <button
-            onClick={onOpenCredits}
-            aria-label="Credits"
-            title="Credits"
-            className="px-2.5 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-400 hover:text-rune text-xs sm:text-sm font-medium transition"
-          >
-            ✦
-          </button>
-          <button
-            onClick={onOpenDev}
-            aria-label="Dev overrides"
-            title="Dev overrides"
-            className="px-2.5 py-1.5 rounded-md border border-stone-700 hover:border-amber-600/60 text-stone-500 hover:text-amber-300/80 text-xs sm:text-sm font-medium transition"
-          >
-            ⚙
-          </button>
+          <OverflowMenu
+            runActive={runActive}
+            onRetire={onRetire}
+            onOpenCredits={onOpenCredits}
+            onOpenDev={onOpenDev}
+          />
         </div>
       </div>
     </header>
+  )
+}
+
+function OverflowMenu({ runActive, onRetire, onOpenCredits, onOpenDev }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = e => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    const onKey = e => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const itemClass =
+    'w-full text-left px-3 py-2 text-sm text-slate-300 hover:bg-stone-800/70 hover:text-parchment transition flex items-center gap-2'
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        aria-label="More options"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="More"
+        className="px-2.5 py-1.5 rounded-md border border-stone-700 hover:border-rune/60 text-slate-400 hover:text-parchment text-base leading-none font-medium transition"
+      >
+        ⋮
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-44 rounded-md border border-stone-700 bg-dungeon/95 backdrop-blur-md shadow-2xl overflow-hidden z-40"
+        >
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onOpenCredits()
+            }}
+            className={itemClass}
+          >
+            <span className="text-rune w-4 text-center">✦</span>
+            <span>Credits</span>
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onOpenDev()
+            }}
+            className={itemClass}
+          >
+            <span className="text-amber-300/80 w-4 text-center">⚙</span>
+            <span>Dev tools</span>
+          </button>
+          {runActive && (
+            <>
+              <div className="h-px bg-stone-800" />
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onRetire()
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:bg-stone-800/70 hover:text-blood transition flex items-center gap-2"
+              >
+                <span className="w-4 text-center">⚑</span>
+                <span>Retire run</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

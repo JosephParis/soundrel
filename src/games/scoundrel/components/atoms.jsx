@@ -5,7 +5,7 @@ import { useState } from 'react'
 //   → "8 − 3 weapon"
 export function formatFormula(parts) {
   if (!parts || parts.length === 0) return ''
-  if (parts.length === 1) return `${parts[0].value}`
+  if (parts.length === 1) return `${parts[0].value} ${parts[0].label}`
   return parts.map((p, i) => {
     if (i === 0) return `${p.value}`
     const sign = p.op === '-' ? '−' : '+'

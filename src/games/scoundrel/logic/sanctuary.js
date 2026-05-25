@@ -2,9 +2,10 @@ import { SUIT_GLYPH, BASE_MAX_HP, isMonster, isWeapon, isPotion, rankLabel, suit
 import { BOONS } from '../boons'
 import {
   appendLog,
-  activeThemes,
+  activeThemes, themeFlagAny,
   activeBoons, hasBoon, minMaxHpOverride,
   bonusVsSuitFor,
+  computePotionsPerRoomLimit,
   sumParts,
 } from './helpers'
 import { computeCurrentDeck } from './deck'
@@ -275,6 +276,61 @@ export function describeDamage(state, card, weaponUsed) {
     parts.push({ label: 'Riposte', value: state.riposteCharge, op: '-' })
   }
 
+  if (hasBoon(state, 'numb') && (state.numbRemaining || 0) > 0) {
+    const beforeNumb = sumParts(parts)
+    if (beforeNumb > 0) {
+      parts.push({
+        label: 'Numb',
+        value: Math.min(state.numbRemaining, beforeNumb),
+        op: '-',
+      })
+    }
+  }
+
   const raw = sumParts(parts)
   return { value: Math.max(0, raw), parts, clamped: raw < 0 }
+}
+
+// Describe what playing this potion now would do. Returns one of:
+//   { mode: 'heal',   value, parts }
+//   { mode: 'damage', value, parts }   // Apothecary sour draught
+//   { mode: 'skip',   note }            // Stoic refusal or wasted overflow
+export function describePotion(state, card) {
+  if (!card || !isPotion(card)) return null
+
+  if (hasBoon(state, 'stoic')) {
+    return { mode: 'skip', note: 'Stoic, set aside' }
+  }
+
+  const themes = activeThemes(state)
+  const apothecary = themeFlagAny(themes, 'secondPotionDamages')
+  const bitterBrew = themeFlagAny(themes, 'potionHealHalf')
+  const playedNow = state.potionsUsedThisRoom || 0
+  const limit = computePotionsPerRoomLimit(activeBoons(state))
+
+  if (apothecary && playedNow >= 1) {
+    const parts = [{ label: 'sour draught', value: card.rank, op: '+' }]
+    return { mode: 'damage', value: card.rank, parts }
+  }
+
+  if (playedNow < limit) {
+    const parts = [{ label: 'potion', value: card.rank, op: '+' }]
+    if (bitterBrew) {
+      const lost = card.rank - Math.floor(card.rank / 2)
+      if (lost > 0) parts.push({ label: 'Bitter Brew', value: lost, op: '-' })
+    }
+    return { mode: 'heal', value: Math.max(0, sumParts(parts)), parts }
+  }
+
+  const parts = []
+  if (hasBoon(state, 'alchemist')) {
+    parts.push({ label: 'Alchemist', value: Math.ceil(card.rank / 2), op: '+' })
+  }
+  if (hasBoon(state, 'field_surgeon')) {
+    parts.push({ label: 'Field Surgeon', value: 1, op: '+' })
+  }
+  if (parts.length === 0) {
+    return { mode: 'skip', note: 'No thirst left' }
+  }
+  return { mode: 'heal', value: Math.max(0, sumParts(parts)), parts }
 }

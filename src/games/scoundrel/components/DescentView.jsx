@@ -4,23 +4,31 @@ import {
   getTheme,
   isMonster, isWeapon, isPotion,
   previewMonsterDamage,
+  describePotion,
   tutorialAllLessonsDone,
+  HEART, DIAMOND, SUIT_GLYPH, rankLabel,
 } from '../logic'
 import { PhaseRail, LogPanel } from './atoms'
 import { CardSlot, HpBar, WeaponPanel, ConditionsPanel, ForesightPanel } from './cards'
+import { SuitIcon, cardBorderTone, suitIconTone } from './SuitIcon'
 
 export function DescentView({ game, setGame }) {
   // When the player commits to a face-down card (Oath), flip it visibly first,
   // then resolve. revealing holds the room index of the card mid-reveal.
   const [revealing, setRevealing] = useState(null)
   // Theme intro: shown once when the descent mounts. Auto-dismisses, but the
-  // player can tap to skip ahead.
+  // player can tap to skip ahead. Themes that show a deck-changes animation
+  // need a longer window so the last card finishes flipping before dismissal.
   const [introOpen, setIntroOpen] = useState(true)
+  const introDeckChangeCount = (game.themeDeckChanges || []).reduce(
+    (n, c) => n + c.additions.length + c.removals.length, 0
+  )
+  const introDurationMs = introDeckChangeCount > 0 ? 6200 : 4200
   useEffect(() => {
     if (!introOpen) return
-    const t = setTimeout(() => setIntroOpen(false), 4200)
+    const t = setTimeout(() => setIntroOpen(false), introDurationMs)
     return () => clearTimeout(t)
-  }, [introOpen])
+  }, [introOpen, introDurationMs])
   useEffect(() => {
     if (!introOpen) return
     const onKey = (e) => { if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') setIntroOpen(false) }
@@ -86,6 +94,7 @@ export function DescentView({ game, setGame }) {
         <ThemeIntroOverlay
           theme={theme}
           themeChildren={game.themeChildren}
+          deckChanges={game.themeDeckChanges}
           onDismiss={() => setIntroOpen(false)}
         />
       )}
@@ -130,6 +139,7 @@ export function DescentView({ game, setGame }) {
             {game.room.map((c, i) => {
               let weaponDamage = null
               let bareDamage = null
+              let potionPreview = null
               if (c && isMonster(c)) {
                 // During the Oath reveal animation, peek the damage of the
                 // card that's flipping so the player can see what they're in for.
@@ -137,6 +147,8 @@ export function DescentView({ game, setGame }) {
                 const preview = previewMonsterDamage(game, previewCard)
                 weaponDamage = preview.weapon
                 bareDamage = preview.bare
+              } else if (c && isPotion(c) && !c.faceDown) {
+                potionPreview = describePotion(game, c)
               }
               // The player has already committed once the reveal starts, so
               // suppress the bare-hands alternate to avoid implying a choice.
@@ -159,6 +171,7 @@ export function DescentView({ game, setGame }) {
                   onBareHands={showBare ? () => onCardBare(i) : null}
                   weaponDamage={weaponDamage}
                   bareDamage={bareDamage}
+                  potionPreview={potionPreview}
                   recommended={isRecommended}
                   tutorialTip={tip}
                   blocked={blocked}
@@ -206,9 +219,12 @@ export function DescentView({ game, setGame }) {
 
 // -- Theme intro overlay -----------------------------------------------
 
-function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
+function ThemeIntroOverlay({ theme, themeChildren, deckChanges, onDismiss }) {
   const childThemes = (themeChildren || []).map(id => getTheme(id)).filter(Boolean)
   if (!theme) return null
+  const allAdds = (deckChanges || []).flatMap(c => c.additions)
+  const allRemoves = (deckChanges || []).flatMap(c => c.removals)
+  const hasDeckChanges = allAdds.length > 0 || allRemoves.length > 0
   return (
     <div
       onClick={onDismiss}
@@ -236,10 +252,91 @@ function ThemeIntroOverlay({ theme, themeChildren, onDismiss }) {
             ))}
           </ul>
         )}
+        {hasDeckChanges && (
+          <DeckChangesPreview additions={allAdds} removals={allRemoves} />
+        )}
         <div className="mt-8 text-[11px] uppercase tracking-[0.3em] text-slate-500 animate-theme-intro-children">
           Tap anywhere to begin
         </div>
       </div>
+    </div>
+  )
+}
+
+// Shows each card actually added or removed by the descent's theme,
+// flipping into view (additions) or fading away with a strike-through
+// (removals). Same flip vocabulary as the Oath face-down reveal so the
+// language reads consistently as "the deck reshuffles itself".
+function DeckChangesPreview({ additions, removals }) {
+  // Hold off until the body/children copy has settled.
+  const baseDelay = 1.0
+  const stagger = 0.18
+  return (
+    <div
+      className="mt-6 pt-4 border-t border-stone-800/80 space-y-4 animate-theme-intro-children"
+    >
+      {additions.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400/70 mb-2">
+            Added to the deck
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {additions.map((card, i) => (
+              <IntroCard
+                key={`add-${card.id}-${i}`}
+                card={card}
+                delay={baseDelay + i * stagger}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {removals.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-rose-400/70 mb-2">
+            Removed from the deck
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {removals.map((card, i) => (
+              <IntroCard
+                key={`rm-${card.id}-${i}`}
+                card={card}
+                delay={baseDelay + (additions.length + i) * stagger}
+                removed
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function IntroCard({ card, delay, removed }) {
+  const red = card.suit === HEART || card.suit === DIAMOND
+  const animClass = removed ? 'animate-intro-card-remove' : 'animate-intro-card-enter'
+  return (
+    <div className="relative w-16 sm:w-[72px]">
+      <div
+        className={`aspect-[2/3] rounded-md border-2 ${cardBorderTone(card)} bg-gradient-to-b from-parchment to-[#e8d5b3] text-stone-900 p-1.5 flex flex-col text-left shadow-md ${animClass}`}
+        style={{ animationDelay: `${delay}s` }}
+      >
+        <div className={`text-base font-bold leading-none ${red ? 'text-blood' : 'text-stone-900'}`}>
+          {rankLabel(card.rank)}{SUIT_GLYPH[card.suit]}
+        </div>
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <SuitIcon suit={card.suit} className={`w-[60%] h-auto ${suitIconTone(card)}`} />
+        </div>
+      </div>
+      {removed && (
+        <div
+          className="absolute inset-0 flex items-center justify-center text-blood text-4xl font-bold pointer-events-none animate-intro-card-strike drop-shadow-[0_0_6px_rgba(185,28,28,0.7)]"
+          style={{ animationDelay: `${delay + 0.5}s` }}
+          aria-hidden="true"
+        >
+          ✕
+        </div>
+      )}
     </div>
   )
 }

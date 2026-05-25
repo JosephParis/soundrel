@@ -62,6 +62,7 @@ export function createRun(rng = Math.random, options = {}) {
     discard: [],
     theme: null,
     themeChildren: null,
+    themeDeckChanges: [],
     monstersFoughtThisRoom: 0,
     lastMonsterSuit: null,
     roomsEntered: 0,
@@ -96,14 +97,16 @@ export function descend(state) {
   // Tutorial uses a hand-curated, unshuffled deck. Everything else
   // (theme effects, shuffle, etc) is skipped so the lesson hits each
   // card in the intended order.
-  let deck, themeLog
+  let deck, themeLog, themeDeckChanges
   if (state.tutorial) {
     deck = buildTutorialDeck()
     themeLog = []
+    themeDeckChanges = []
   } else {
     const built = buildDescentDeck(state, themeId, themeChildren, state.rng)
     deck = built.deck.slice()
     themeLog = built.log
+    themeDeckChanges = built.changes || []
   }
   const roomSize = getRoomSize(themes)
   const room = deck.splice(0, roomSize)
@@ -148,6 +151,7 @@ export function descend(state) {
     discard: [],
     theme: themeId,
     themeChildren,
+    themeDeckChanges,
     monstersFoughtThisRoom: 0,
     lastMonsterSuit: null,
     roomsEntered: 0,
@@ -218,6 +222,7 @@ export function endDescentVictory(state) {
         room: [],
         theme: null,
         themeChildren: null,
+        themeDeckChanges: [],
       },
       'The walk is done. The Quiet waits below.'
     )
@@ -264,6 +269,7 @@ export function endDescentVictory(state) {
       room: [],
       theme: null,
       themeChildren: null,
+      themeDeckChanges: [],
       weapon: null,
       spareWeapon: null,
       discard: [],

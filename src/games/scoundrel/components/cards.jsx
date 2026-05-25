@@ -126,7 +126,7 @@ export function ConditionsPanel({ game, theme }) {
 
 // -- Card slot ---------------------------------------------------------
 
-export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, reveal, recommended, tutorialTip, blocked, bareBlocked, bareRecommended }) {
+export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage, potionPreview, reveal, recommended, tutorialTip, blocked, bareBlocked, bareRecommended }) {
   if (!card) {
     return (
       <div className="aspect-[2/3] w-full max-w-[240px] rounded-lg border border-dashed border-stone-800 bg-stone-900/30" />
@@ -139,8 +139,11 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
   const kind = isMonster(card) ? 'Monster' : isWeapon(card) ? 'Weapon' : isPotion(card) ? 'Potion' : ''
   const monster = isMonster(card)
   const willUseWeapon = monster && weaponDamage !== null
-  const previewDesc = !monster ? null : willUseWeapon ? weaponDamage : bareDamage
-  const previewIcon = willUseWeapon ? '⚔' : '✊'
+  const monsterPreview = !monster ? null : willUseWeapon ? weaponDamage : bareDamage
+  const monsterIcon = willUseWeapon ? '⚔' : '✊'
+  const potionHeal = potionPreview && potionPreview.mode === 'heal' ? potionPreview : null
+  const potionSour = potionPreview && potionPreview.mode === 'damage' ? potionPreview : null
+  const potionSkip = potionPreview && potionPreview.mode === 'skip' ? potionPreview : null
 
   // When the lesson points at the bare-hands button AND the card-click
   // would actually swing (weapon usable), forbid the swing. If the
@@ -176,17 +179,41 @@ export function CardSlot({ card, onClick, onBareHands, weaponDamage, bareDamage,
           <SuitIcon suit={card.suit} className={`w-[62%] h-auto ${suitIconTone(card)}`} />
         </div>
         <div className="text-center flex flex-col items-center gap-0.5 min-h-[34px] justify-center">
-          {previewDesc ? (
+          {monsterPreview ? (
             <>
               <span className="text-[12px] tracking-normal text-stone-800 font-medium">
-                {previewIcon} take {previewDesc.value}
+                {monsterIcon} take {monsterPreview.value}
               </span>
-              {previewDesc.parts.length > 1 && (
+              {monsterPreview.parts.length > 1 && (
                 <span className="text-[10px] tracking-normal text-stone-500 leading-tight">
-                  ({formatFormula(previewDesc.parts)})
+                  ({formatFormula(monsterPreview.parts)})
                 </span>
               )}
             </>
+          ) : potionHeal ? (
+            <>
+              <span className="text-[12px] tracking-normal text-stone-800 font-medium">
+                ♥ heal {potionHeal.value}
+              </span>
+              {potionHeal.parts.length > 0 && (
+                <span className="text-[10px] tracking-normal text-stone-500 leading-tight">
+                  ({formatFormula(potionHeal.parts)})
+                </span>
+              )}
+            </>
+          ) : potionSour ? (
+            <>
+              <span className="text-[12px] tracking-normal text-stone-800 font-medium">
+                ✸ take {potionSour.value}
+              </span>
+              {potionSour.parts.length > 0 && (
+                <span className="text-[10px] tracking-normal text-stone-500 leading-tight">
+                  ({formatFormula(potionSour.parts)})
+                </span>
+              )}
+            </>
+          ) : potionSkip ? (
+            <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">{potionSkip.note}</span>
           ) : (
             <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">{kind}</span>
           )}
